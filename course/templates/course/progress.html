@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{{ ct.group_progress }} · {{ ct.course }}{% endblock %}
+{% block content %}
+<p class="eyebrow"><a href="{% url 'course_home' %}">{{ ct.course }}</a></p>
+<h1>{{ ct.group_progress }}</h1>
+<p class="muted small">{{ ct.legend }}</p>
+{% if rows %}
+<div class="card table-wrap">
+  <table class="progress-table">
+    <thead><tr><th>{{ ct.student }}</th>{% for l in lessons %}<th title="{{ l.title_ru }}">{{ l.number }}</th>{% endfor %}<th>✓</th><th>{{ ct.points }}</th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td class="progress-table__name">{{ r.user.get_full_name|default:r.user.username }}</td>
+        {% for c in r.cells %}<td class="cell cell--{{ c.state }}" title="{{ c.n }} / {{ c.total }}">{% if c.state == 'done' %}✓{% elif c.state == 'part' %}{{ c.n }}{% endif %}</td>{% endfor %}
+        <td><strong>{{ r.done }}</strong></td><td><strong>{{ r.points }}</strong></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="muted">{{ ct.no_students }}</p>
+{% endif %}
+{% endblock %}

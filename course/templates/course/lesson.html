@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ ct.lesson }} {{ lesson.number }}. {{ title }}{% endblock %}
+{% block content %}
+<div id="lesson" data-lang="{{ lang }}" data-pyodide="{{ pyodide_url }}" data-worker="{% static 'js/pyworker.js' %}"
+     data-csrf="{{ csrf_token }}" data-auth="{% if user.is_authenticated %}1{% else %}0{% endif %}">
+  <p class="eyebrow"><a href="{% url 'course_home' %}">{{ ct.course }}</a> · {{ ct.module }} {{ lesson.module.number }}: {{ module_title }}</p>
+  <h1>{{ ct.lesson }} {{ lesson.number }}. {{ title }}</h1>
+  {% if goal %}<p class="lead">🎯 {{ goal }}</p>{% endif %}
+
+  {% if theory %}
+  <section class="card theory">
+    <h2>{{ ct.theory }}</h2>
+    {% for b in theory %}
+      {% if b.code %}<pre class="code"><code>{{ b.code }}</code></pre>{% else %}<p>{{ b.p|linebreaksbr }}</p>{% endif %}
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  <h2 class="section-title">{{ ct.tasks }}</h2>
+  {% if not user.is_authenticated %}<div class="flash">{{ ct.login_to_save }} — <a href="{% url 'login' %}?next={{ request.path }}">{{ t.login }}</a></div>{% endif %}
+
+  {% for it in tasks %}
+  <article class="card task{% if it.solved %} is-solved{% endif %}" data-kind="{{ it.task.kind }}" data-submit="{% url 'course_submit' it.task.id %}">
+    <header class="task__head">
+      <h3>{{ ct.task }} {{ forloop.counter }}. {{ it.title }}</h3>
+      <span class="task__badge" {% if not it.solved %}hidden{% endif %}>✓ {{ ct.solved }}</span>
+      <span class="muted small">{{ it.task.points }} {{ ct.points }}</span>
+    </header>
+    <div class="task__text">{{ it.text|linebreaks }}</div>
+    {% if it.hint %}<details class="hint"><summary>{{ ct.hint }}</summary><p>{{ it.hint|linebreaksbr }}</p></details>{% endif %}
+
+    <textarea class="editor" spellcheck="false" autocapitalize="off" autocomplete="off" rows="{% if it.task.kind == 'project' %}14{% else %}9{% endif %}">{{ it.code }}</textarea>
+    <details class="stdin-box"{% if it.example_input %} open{% endif %}>
+      <summary>{{ ct.input_data }}</summary>
+      <textarea class="stdin" rows="3" spellcheck="false">{{ it.example_input }}</textarea>
+    </details>
+    <div class="task__actions">
+      <button type="button" class="btn btn--ghost js-run">{{ ct.run }}</button>
+      <button type="button" class="btn js-check">{% if it.task.kind == 'project' %}{{ ct.submit_project }}{% else %}{{ ct.check }}{% endif %}</button>
+      <button type="button" class="linkbtn js-reset">{{ ct.reset }}</button>
+    </div>
+    <div class="task__out" aria-live="polite"></div>
+
+    {% if user.is_staff and it.task.solution %}
+    <details class="hint teacher"><summary>{{ ct.teacher_solution }}</summary><pre class="code"><code>{{ it.task.solution }}</code></pre></details>
+    {% endif %}
+    <script type="application/json" class="taskdata">{{ it.data_json|safe }}</script>
+  </article>
+  {% endfor %}
+
+  <nav class="lesson-nav">
+    {% if prev %}<a class="btn btn--ghost" href="{% url 'course_lesson' prev.number %}">{{ ct.prev }}</a>{% else %}<span></span>{% endif %}
+    <a class="linkbtn" href="{% url 'course_home' %}">{{ ct.to_course }}</a>
+    {% if next %}<a class="btn" href="{% url 'course_lesson' next.number %}">{{ ct.next }}</a>{% endif %}
+  </nav>
+</div>
+{{ ct|json_script:"course-texts" }}
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/course.js' %}"></script>{% endblock %}
