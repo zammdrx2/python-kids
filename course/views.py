@@ -1,38 +1,148 @@
 import json
 
 from django.conf import settings
+from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, render
+from django.http import Http404, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from core.ui import get_lang
 
 from . import services
-from .models import Lesson, Module, Submission, Task
+from .models import Course, Lesson, Module, Submission, Task
 from .ui import course_texts
 
+MODULE_COLORS = ["#FFB4A2", "#FFD166", "#8ED1C6", "#B9C2FD", "#F9B4D6", "#A8DC98"]
 
-def course_home(request):
+# Короткое описание модулей: (курс, номер модуля) -> (рус, қаз)
+MODULE_DESC = {
+    ("python", 1): ("print, переменные, input", "print, айнымалылар, input"),
+    ("python", 2): ("if, elif, and / or", "if, elif, and / or"),
+    ("python", 3): ("for, while, игра «Угадай число»", "for, while, «Санды тап» ойыны"),
+    ("python", 4): ("срезы, методы, шифр Цезаря", "кесінділер, әдістер, Цезарь шифры"),
+    ("python", 5): ("append, sort, журнал оценок", "append, sort, бағалар журналы"),
+    ("python", 6): ("def, return, словари, своя игра", "def, return, сөздіктер, өз ойының"),
+    ("web", 1): ("теги, заголовки, абзацы, списки", "тегтер, тақырыптар, абзацтар, тізімдер"),
+    ("web", 2): ("ссылки, картинки, таблицы", "сілтемелер, суреттер, кестелер"),
+    ("web", 3): ("цвета, шрифты, классы, блоки", "түстер, қаріптер, кластар, блоктар"),
+    ("web", 4): ("Flexbox: блоки в ряд, галерея", "Flexbox: қатардағы блоктар, галерея"),
+    ("web", 5): ("формы, кнопки, наведение, тени", "формалар, батырмалар, меңзеу, көлеңкелер"),
+    ("web", 6): ("структура, телефон, анимации, свой сайт", "құрылым, телефон, анимациялар, өз сайтың"),
+    ("js", 1): ("console.log, переменные, input", "console.log, айнымалылар, input"),
+    ("js", 2): ("if, else if, &&, ||, викторина", "if, else if, &&, ||, викторина"),
+    ("js", 3): ("for, while, строки", "for, while, жолдар"),
+    ("js", 4): ("функции, массивы, игра", "функциялар, массивтер, ойын"),
+    ("sql", 1): ("SELECT, WHERE, LIKE", "SELECT, WHERE, LIKE"),
+    ("sql", 2): ("ORDER BY, COUNT, AVG, DISTINCT", "ORDER BY, COUNT, AVG, DISTINCT"),
+    ("sql", 3): ("GROUP BY, HAVING, JOIN", "GROUP BY, HAVING, JOIN"),
+    ("sql", 4): ("INSERT, UPDATE, DELETE, библиотека", "INSERT, UPDATE, DELETE, кітапхана"),
+    ("js", 5): ("map, filter, reduce, журнал", "map, filter, reduce, журнал"),
+    ("js", 6): ("объекты, магазин", "объектілер, дүкен"),
+    ("js", 7): ("Math, вложенные циклы, шифр", "Math, ішкі циклдер, шифр"),
+    ("js", 8): ("рекурсия, сортировка, игра", "рекурсия, сұрыптау, ойын"),
+    ("sql", 5): ("IN, BETWEEN, NULL, CASE", "IN, BETWEEN, NULL, CASE"),
+    ("sql", 6): ("текст, числа, рейтинг", "мәтін, сандар, рейтинг"),
+    ("sql", 7): ("LEFT JOIN, подзапросы, продажи", "LEFT JOIN, ішкі сұраулар, сатылым"),
+    ("sql", 8): ("CREATE, ALTER, отчёт магазина", "CREATE, ALTER, дүкен есебі"),
+}
+
+
+def module_style(course, number, lang):
+    color = MODULE_COLORS[(number - 1) % len(MODULE_COLORS)]
+    ru, kk = MODULE_DESC.get((course.slug, number), ("", ""))
+    return color, (kk if lang == "kk" and kk else ru)
+
+
+def _course_map(user, course, lang):
+    """Модули курса с уроками, прогрессом и замками."""
+    progress = services.lesson_progress(user)
+    access = services.lesson_access(user, progress)
+    modules, flat = [], []
+    for m in Module.objects.filter(course=course).prefetch_related("lessons"):
+        color, desc = module_style(course, m.number, lang)
+        lessons = []
+        for l in m.lessons.all():
+            p = progress.get(l.id, {"solved": 0, "total": 0})
+            state = "done" if p["total"] and p["solved"] == p["total"] else ("part" if p["solved"] else "todo")
+            item = {"lesson": l, "title": l.title(lang), "goal": l.goal(lang), "progress": p, "state": state,
+                    "module": m, "color": color, "locked": not access.get(l.id, False)}
+            lessons.append(item)
+            flat.append(item)
+        done = sum(1 for i in lessons if i["state"] == "done")
+        modules.append({"module": m, "title": m.title(lang), "lessons": lessons, "color": color, "desc": desc,
+                        "locked": bool(lessons) and lessons[0]["locked"],
+                        "done": done, "total": len(lessons), "steps": [k < done for k in range(len(lessons))]})
+    return modules, flat
+
+
+def lessons_word(n, lang):
+    """1 урок, 2 урока, 5 уроков; по-казахски всегда «сабақ»."""
+    if lang == "kk":
+        return "сабақ"
+    if n % 10 == 1 and n % 100 != 11:
+        return "урок"
+    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
+        return "урока"
+    return "уроков"
+
+
+def _course(slug):
+    return get_object_or_404(Course, slug=slug)
+
+
+def home(request):
+    """Выбор курса."""
     lang = get_lang(request)
     progress = services.lesson_progress(request.user)
-    modules = []
-    for m in Module.objects.prefetch_related("lessons"):
-        lessons = [{
-            "lesson": l, "title": l.title(lang), "progress": progress.get(l.id, {"solved": 0, "total": 0}),
-        } for l in m.lessons.all()]
-        modules.append({"module": m, "title": m.title(lang), "lessons": lessons})
-    done = sum(1 for p in progress.values() if p["total"] and p["solved"] == p["total"])
-    return render(request, "course/home.html", {
-        "modules": modules, "ct": course_texts(lang), "points": services.user_points(request.user),
-        "done": done, "lesson_count": len(progress),
+    courses = []
+    for c in Course.objects.all():
+        ids = list(c.lessons.values_list("id", flat=True))
+        done = sum(1 for i in ids if progress.get(i, {}).get("total") and
+                   progress[i]["solved"] >= progress[i]["total"])
+        courses.append({"course": c, "title": c.title(lang), "desc": c.desc(lang), "lessons": len(ids), "done": done,
+                        "lessons_word": lessons_word(len(ids), lang)})
+    return render(request, "course/courses.html", {
+        "courses": courses, "ct": course_texts(lang), "points": services.user_points(request.user),
     })
 
 
-def lesson_detail(request, number):
+def course_home(request, course):
     lang = get_lang(request)
-    lesson = get_object_or_404(Lesson.objects.select_related("module"), number=number)
+    course = _course(course)
+    modules, flat = _course_map(request.user, course, lang)
+    next_item = next((i for i in flat if i["state"] != "done" and not i["locked"]), None)
+    return render(request, "course/home.html", {
+        "course": course, "course_title": course.title(lang),
+        "modules": modules, "ct": course_texts(lang), "points": services.user_points(request.user),
+        "next_item": next_item, "started": any(i["progress"]["solved"] for i in flat),
+    })
+
+
+def module_detail(request, course, number):
+    lang = get_lang(request)
+    course = _course(course)
+    modules, _ = _course_map(request.user, course, lang)
+    mod = next((m for m in modules if m["module"].number == number), None)
+    if mod is None:
+        raise Http404
+    return render(request, "course/module.html", {"course": course, "course_title": course.title(lang),
+                                                  "m": mod, "ct": course_texts(lang),
+                                                  "points": services.user_points(request.user)})
+
+
+def lesson_detail(request, course, number):
+    lang = get_lang(request)
+    course = _course(course)
+    lesson = get_object_or_404(Lesson.objects.select_related("module"), course=course, number=number)
+    ct = course_texts(lang)
+    if not services.is_lesson_open(request.user, lesson):
+        if request.user.is_authenticated:
+            messages.info(request, f"{ct['locked_msg']} {number - 1}.")
+        else:
+            messages.info(request, ct["locked_guest"])
+        return redirect("course_module", course.slug, lesson.module.number)
     subs = {}
     if request.user.is_authenticated:
         subs = {s.task_id: s for s in Submission.objects.filter(user=request.user, task__lesson=lesson)}
@@ -43,24 +153,40 @@ def lesson_detail(request, number):
             "task": t, "title": t.title(lang), "text": t.text(lang), "hint": t.hint(lang),
             "code": s.code if s and s.code else t.starter_code,
             "solved": bool(s and s.solved),
-            "example_input": t.tests[0]["input"] if t.tests else "",
+            "example_input": t.tests[0].get("input", "") if t.tests and t.kind != Task.Kind.WEB else "",
             # JSON для страницы; "<" экранируем, чтобы код вроде "</script>" не ломал HTML
             "data_json": json.dumps({"tests": t.tests, "starter": t.starter_code}, ensure_ascii=False).replace("<", "\\u003c"),
         })
-    prev_lesson = Lesson.objects.filter(number__lt=number).order_by("-number").first()
-    next_lesson = Lesson.objects.filter(number__gt=number).order_by("number").first()
+    color, _ = module_style(course, lesson.module.number, lang)
+    prev_lesson = Lesson.objects.filter(course=course, number__lt=number).order_by("-number").first()
+    next_lesson = Lesson.objects.filter(course=course, number__gt=number).order_by("number").first()
     return render(request, "course/lesson.html", {
-        "lesson": lesson, "title": lesson.title(lang), "goal": lesson.goal(lang),
+        "course": course, "lesson": lesson, "title": lesson.title(lang), "goal": lesson.goal(lang),
         "module_title": lesson.module.title(lang), "theory": lesson.theory_blocks(lang),
-        "tasks": tasks, "prev": prev_lesson, "next": next_lesson, "ct": course_texts(lang),
-        "pyodide_url": settings.PYODIDE_URL,
+        "tasks": tasks, "prev": prev_lesson, "next": next_lesson, "ct": ct,
+        "pyodide_url": settings.PYODIDE_URL, "color": color,
+        "points": services.user_points(request.user),
+        "next_title": next_lesson.title(lang) if next_lesson else "",
+        "lesson_done": bool(tasks) and all(t["solved"] for t in tasks),
+        "is_teacher": request.user.is_staff,
     })
+
+
+def legacy_lesson(request, number):
+    """Старые адреса /lesson/5/ ведут в курс Python."""
+    return redirect("course_lesson", "python", number, permanent=True)
+
+
+def legacy_module(request, number):
+    return redirect("course_module", "python", number, permanent=True)
 
 
 @login_required
 @require_POST
 def submit(request, task_id):
-    task = get_object_or_404(Task, pk=task_id)
+    task = get_object_or_404(Task.objects.select_related("lesson"), pk=task_id)
+    if not services.is_lesson_open(request.user, task.lesson):
+        return JsonResponse({"ok": False, "error": "locked"}, status=403)
     try:
         data = json.loads(request.body or "{}")
         passed = int(data.get("passed", 0))
@@ -73,5 +199,12 @@ def submit(request, task_id):
 @staff_member_required
 def group_progress(request):
     lang = get_lang(request)
-    lessons, rows = services.group_progress()
-    return render(request, "course/progress.html", {"lessons": lessons, "rows": rows, "ct": course_texts(lang)})
+    courses = list(Course.objects.all())
+    if not courses:
+        raise Http404
+    current = next((c for c in courses if c.slug == request.GET.get("course")), courses[0])
+    lessons, rows = services.group_progress(current)
+    return render(request, "course/progress.html", {
+        "lessons": lessons, "rows": rows, "ct": course_texts(lang),
+        "courses": [{"course": c, "title": c.title(lang)} for c in courses], "current": current,
+    })

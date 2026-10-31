@@ -1,8 +1,8 @@
 """
-Курс «Python для детей»: модули, уроки, задания с тестами и решения учеников.
+Курсы программирования для детей: курс → модули → уроки → задания, решения учеников.
 
-Код учеников выполняется в браузере (Pyodide), сервер хранит задания,
-тесты и результаты. Тексты хранятся на двух языках (ru / kk).
+Код учеников выполняется в браузере (Python — через Pyodide, HTML/CSS — в окне
+предпросмотра), сервер хранит задания, проверки и результаты. Тексты — ru / kk.
 """
 from django.conf import settings
 from django.db import models
@@ -10,13 +10,46 @@ from django.db import models
 from core.ui import tr
 
 
+class Course(models.Model):
+    class Kind(models.TextChoices):
+        PYTHON = "python", "Python"
+        WEB = "web", "HTML и CSS"
+        JS = "js", "JavaScript"
+        SQL = "sql", "SQL"
+
+    slug = models.SlugField("Адрес", unique=True)
+    kind = models.CharField("Тип", max_length=10, choices=Kind.choices, default=Kind.PYTHON)
+    title_ru = models.CharField("Название (рус)", max_length=200)
+    title_kk = models.CharField("Атауы (қаз)", max_length=200, blank=True)
+    desc_ru = models.CharField("Описание (рус)", max_length=300, blank=True)
+    desc_kk = models.CharField("Сипаттама (қаз)", max_length=300, blank=True)
+    color = models.CharField("Цвет", max_length=20, default="#FFD166")
+    order = models.PositiveIntegerField("Порядок", default=0)
+
+    class Meta:
+        ordering = ["order", "id"]
+        verbose_name = "Курс"
+        verbose_name_plural = "Курсы"
+
+    def __str__(self):
+        return self.title_ru
+
+    def title(self, lang):
+        return tr(self, "title", lang)
+
+    def desc(self, lang):
+        return tr(self, "desc", lang)
+
+
 class Module(models.Model):
-    number = models.PositiveIntegerField("Номер", unique=True)
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="modules", verbose_name="Курс")
+    number = models.PositiveIntegerField("Номер")
     title_ru = models.CharField("Название (рус)", max_length=200)
     title_kk = models.CharField("Атауы (қаз)", max_length=200, blank=True)
 
     class Meta:
-        ordering = ["number"]
+        ordering = ["course", "number"]
+        unique_together = ("course", "number")
         verbose_name = "Модуль"
         verbose_name_plural = "Модули"
 
@@ -28,8 +61,9 @@ class Module(models.Model):
 
 
 class Lesson(models.Model):
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="lessons", verbose_name="Курс")
     module = models.ForeignKey(Module, on_delete=models.CASCADE, related_name="lessons")
-    number = models.PositiveIntegerField("Номер урока", unique=True)
+    number = models.PositiveIntegerField("Номер урока")
     title_ru = models.CharField("Тема (рус)", max_length=200)
     title_kk = models.CharField("Тақырып (қаз)", max_length=200, blank=True)
     goal_ru = models.CharField("Цель (рус)", max_length=300, blank=True)
@@ -39,7 +73,8 @@ class Lesson(models.Model):
     is_project = models.BooleanField("Урок-проект", default=False)
 
     class Meta:
-        ordering = ["number"]
+        ordering = ["course", "number"]
+        unique_together = ("course", "number")
         verbose_name = "Урок"
         verbose_name_plural = "Уроки"
 
@@ -67,6 +102,9 @@ class Task(models.Model):
     class Kind(models.TextChoices):
         TESTED = "tested", "С автопроверкой"
         PROJECT = "project", "Свободный проект"
+        WEB = "web", "HTML/CSS с проверкой страницы"
+        JS = "js", "JavaScript с тестами"
+        SQL = "sql", "SQL-запрос с проверкой результата"
 
     lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name="tasks")
     order = models.PositiveIntegerField("Порядок", default=1)

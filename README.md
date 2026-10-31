@@ -1,6 +1,14 @@
 # Python для детей
 
-Сайт-курс программирования на Python для детей 11–15 лет: 24 урока (6 модулей, 3 месяца по 2 урока в неделю) на русском и казахском языках. Ученик читает короткую теорию, пишет код прямо в браузере и сразу получает автопроверку.
+Сайт с курсами программирования для детей 11–15 лет на русском и казахском языках. Ученик читает короткую теорию, пишет код прямо в браузере и сразу получает автопроверку.
+
+- **Python** — 24 урока (6 модулей, 3 месяца по 2 урока в неделю), 144 задания; код выполняется через Pyodide.
+- **HTML и CSS** — 24 урока (6 модулей), 120 заданий; страница ученика видна рядом с кодом, проверка смотрит теги, текст, атрибуты и стили.
+
+- **JavaScript** — 24 урока, 102 задания; код выполняется в Web Worker, проверка сравнивает вывод `console.log`.
+- **SQL** — 24 урока, 99 заданий; настоящая база SQLite в браузере (sql.js), ответ сравнивается с правильной таблицей на двух наборах данных.
+
+Уроки открываются по порядку: следующий доступен, когда решены все задания предыдущего.
 
 ![Django](https://img.shields.io/badge/Django-5-0C4B33) ![Pyodide](https://img.shields.io/badge/Pyodide-0.26-blue) ![tests](https://img.shields.io/badge/tests-passing-brightgreen)
 
@@ -41,6 +49,12 @@ python manage.py runserver
 Тесты: `python manage.py test`. Через Docker: `docker compose up --build`.
 
 ## Как менять уроки
+
+Курс HTML и CSS лежит в `course/data/build/web_course.py`: `python course/data/build/web_course.py` пишет `course/data/web.json`, а `node course/data/build/check_web.js` проверяет в браузере, что эталоны проходят проверки, а начальный код — нет.
+
+Курсы JavaScript и SQL: `python course/data/build/js_course.py` и `python course/data/build/sql_course.py` (ожидаемые ответы вычисляются из эталонов), `node course/data/build/check_sql.js` сверяет ответы с движком сайта.
+
+Курс Python:
 
 Тексты уроков и задания лежат в `course/data/build/part1.py` (уроки 1–12) и `part2.py` (уроки 13–24). После правок:
 

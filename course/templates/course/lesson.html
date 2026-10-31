@@ -1,60 +1,101 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}{{ ct.lesson }} {{ lesson.number }}. {{ title }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'vendor/codemirror/codemirror.css' %}">{% endblock %}
+{% block topstyle %}style="background: {{ color }}"{% endblock %}
+{% block band %}
+<div class="band wrap">
+  <a class="back" href="{% url 'course_module' course.slug lesson.module.number %}">← {{ ct.module }} {{ lesson.module.number }} · {{ module_title }}</a>
+  <h1 class="band__title">{{ title }}</h1>
+  <p class="band__sub">{{ ct.lesson }} {{ lesson.number }}{% if goal %} · {{ goal }}{% endif %}</p>
+  <nav class="steps" aria-label="{{ ct.lesson_steps }}">
+    {% if theory %}<a href="#step-0" data-step="0">{{ ct.step_theory }}</a>{% endif %}
+    {% for it in tasks %}<a href="#step-{{ forloop.counter }}" data-step="{{ forloop.counter }}" class="{% if it.solved %}is-done{% endif %}">{% if it.task.kind == 'project' %}★ {{ ct.project }}{% else %}{{ forloop.counter }}{% endif %}</a>{% endfor %}
+  </nav>
+</div>
+{% endblock %}
 {% block content %}
-<div id="lesson" data-lang="{{ lang }}" data-pyodide="{{ pyodide_url }}" data-worker="{% static 'js/pyworker.js' %}"
+<div id="lesson" class="lesson{% if course.kind == 'web' %} lesson--web{% endif %}" data-course-kind="{{ course.kind }}" data-lang="{{ lang }}" data-pyodide="{{ pyodide_url }}" data-worker="{% static 'js/pyworker.js' %}" data-jsworker="{% static 'js/jsworker.js' %}" data-sqljs="{% static 'vendor/sqljs/' %}"
      data-csrf="{{ csrf_token }}" data-auth="{% if user.is_authenticated %}1{% else %}0{% endif %}">
-  <p class="eyebrow"><a href="{% url 'course_home' %}">{{ ct.course }}</a> · {{ ct.module }} {{ lesson.module.number }}: {{ module_title }}</p>
-  <h1>{{ ct.lesson }} {{ lesson.number }}. {{ title }}</h1>
-  {% if goal %}<p class="lead">🎯 {{ goal }}</p>{% endif %}
+  {% if not user.is_authenticated %}<div class="flash">{{ ct.login_to_save }} — <a href="{% url 'login' %}?next={{ request.path }}">{{ t.login }}</a></div>{% endif %}
 
   {% if theory %}
-  <section class="card theory">
-    <h2>{{ ct.theory }}</h2>
+  <section class="panel step-panel" id="step-0" aria-labelledby="theory-h">
+    <h2 id="theory-h" class="h2">{{ ct.theory }}</h2>
     {% for b in theory %}
-      {% if b.code %}<pre class="code"><code>{{ b.code }}</code></pre>{% else %}<p>{{ b.p|linebreaksbr }}</p>{% endif %}
+      {% if b.code %}<pre class="code{% if course.kind == 'python' %} js-hl{% endif %}"><code>{{ b.code }}</code></pre>{% else %}<p>{{ b.p|linebreaksbr }}</p>{% endif %}
     {% endfor %}
+    {% if tasks %}<div class="panel__foot"><a class="btn" href="#step-1">{{ ct.to_tasks }}</a></div>{% endif %}
   </section>
   {% endif %}
 
-  <h2 class="section-title">{{ ct.tasks }}</h2>
-  {% if not user.is_authenticated %}<div class="flash">{{ ct.login_to_save }} — <a href="{% url 'login' %}?next={{ request.path }}">{{ t.login }}</a></div>{% endif %}
-
   {% for it in tasks %}
-  <article class="card task{% if it.solved %} is-solved{% endif %}" data-kind="{{ it.task.kind }}" data-submit="{% url 'course_submit' it.task.id %}">
+  <article class="panel step-panel task{% if it.solved %} is-solved{% endif %}" id="step-{{ forloop.counter }}" data-step="{{ forloop.counter }}"
+           data-kind="{{ it.task.kind }}" data-submit="{% url 'course_submit' it.task.id %}">
     <header class="task__head">
-      <h3>{{ ct.task }} {{ forloop.counter }}. {{ it.title }}</h3>
+      <h2 class="h2">{{ it.title }}</h2>
       <span class="task__badge" {% if not it.solved %}hidden{% endif %}>✓ {{ ct.solved }}</span>
-      <span class="muted small">{{ it.task.points }} {{ ct.points }}</span>
+      <span class="task__pts">+{{ it.task.points }}</span>
     </header>
     <div class="task__text">{{ it.text|linebreaks }}</div>
     {% if it.hint %}<details class="hint"><summary>{{ ct.hint }}</summary><p>{{ it.hint|linebreaksbr }}</p></details>{% endif %}
 
-    <textarea class="editor" spellcheck="false" autocapitalize="off" autocomplete="off" rows="{% if it.task.kind == 'project' %}14{% else %}9{% endif %}">{{ it.code }}</textarea>
-    <details class="stdin-box"{% if it.example_input %} open{% endif %}>
-      <summary>{{ ct.input_data }}</summary>
-      <textarea class="stdin" rows="3" spellcheck="false">{{ it.example_input }}</textarea>
-    </details>
+    {% if it.task.kind == 'web' %}
+    <div class="webgrid">
+      <div>
+        <label class="label" for="code-{{ it.task.id }}">{{ ct.your_code }}</label>
+        <textarea id="code-{{ it.task.id }}" class="editor" spellcheck="false" autocapitalize="off" autocomplete="off" rows="12">{{ it.code }}</textarea>
+      </div>
+      <div>
+        <p class="label">{{ ct.preview }}</p>
+        <iframe class="preview" sandbox="allow-same-origin" title="{{ ct.preview }}"></iframe>
+      </div>
+    </div>
     <div class="task__actions">
-      <button type="button" class="btn btn--ghost js-run">{{ ct.run }}</button>
-      <button type="button" class="btn js-check">{% if it.task.kind == 'project' %}{{ ct.submit_project }}{% else %}{{ ct.check }}{% endif %}</button>
+      <button type="button" class="btn btn--big js-check">{{ ct.check_page }}</button>
       <button type="button" class="linkbtn js-reset">{{ ct.reset }}</button>
     </div>
+    {% elif it.task.kind == 'sql' %}
+    <label class="label" for="code-{{ it.task.id }}">{{ ct.your_query }}</label>
+    <textarea id="code-{{ it.task.id }}" class="editor" spellcheck="false" autocapitalize="off" autocomplete="off" rows="6">{{ it.code }}</textarea>
+    <div class="task__actions">
+      <button type="button" class="btn btn--big js-check">{{ ct.check }}</button>
+      <button type="button" class="btn btn--soft js-run">{{ ct.run }}</button>
+      <button type="button" class="linkbtn js-reset">{{ ct.reset }}</button>
+    </div>
+    {% else %}
+    <label class="label" for="code-{{ it.task.id }}">{{ ct.your_code }}</label>
+    <textarea id="code-{{ it.task.id }}" class="editor" spellcheck="false" autocapitalize="off" autocomplete="off" rows="{% if it.task.kind == 'project' %}14{% else %}8{% endif %}">{{ it.code }}</textarea>
+    <details class="stdin-box"{% if it.example_input %} open{% endif %}>
+      <summary>{{ ct.input_data }}</summary>
+      <textarea class="stdin" rows="3" spellcheck="false" aria-label="{{ ct.input_data }}">{{ it.example_input }}</textarea>
+    </details>
+    <div class="task__actions">
+      <button type="button" class="btn btn--big js-check">{% if it.task.kind == 'project' %}{{ ct.submit_project }}{% else %}{{ ct.check }}{% endif %}</button>
+      <button type="button" class="btn btn--soft js-run">{{ ct.run }}</button>
+      <button type="button" class="linkbtn js-reset">{{ ct.reset }}</button>
+    </div>
+    {% endif %}
     <div class="task__out" aria-live="polite"></div>
 
     {% if user.is_staff and it.task.solution %}
-    <details class="hint teacher"><summary>{{ ct.teacher_solution }}</summary><pre class="code"><code>{{ it.task.solution }}</code></pre></details>
+    <details class="hint teacher"><summary>{{ ct.teacher_solution }}</summary><pre class="code js-hl"><code>{{ it.task.solution }}</code></pre></details>
     {% endif %}
+    <div class="panel__foot">
+      {% if not forloop.last %}<a class="btn btn--soft" href="#step-{{ forloop.counter|add:1 }}">{{ ct.next_step }} →</a>
+      {% elif next %}
+        <p class="next-locked js-next-locked"{% if lesson_done or is_teacher %} hidden{% endif %}>{{ ct.next_locked }}</p>
+        <p class="next-open js-next-done" hidden>{{ ct.lesson_complete }}</p>
+        <a class="btn js-next-lesson" href="{% url 'course_lesson' course.slug next.number %}"{% if not lesson_done and not is_teacher %} hidden{% endif %}>{{ ct.lesson_done_next }}: {{ next_title }} →</a>
+      {% endif %}
+    </div>
     <script type="application/json" class="taskdata">{{ it.data_json|safe }}</script>
   </article>
   {% endfor %}
-
-  <nav class="lesson-nav">
-    {% if prev %}<a class="btn btn--ghost" href="{% url 'course_lesson' prev.number %}">{{ ct.prev }}</a>{% else %}<span></span>{% endif %}
-    <a class="linkbtn" href="{% url 'course_home' %}">{{ ct.to_course }}</a>
-    {% if next %}<a class="btn" href="{% url 'course_lesson' next.number %}">{{ ct.next }}</a>{% endif %}
-  </nav>
 </div>
 {{ ct|json_script:"course-texts" }}
 {% endblock %}
-{% block scripts %}<script src="{% static 'js/course.js' %}"></script>{% endblock %}
+{% block scripts %}<script src="{% static 'vendor/codemirror/codemirror.min.js' %}"></script>
+<script src="{% static 'js/webchecks.js' %}"></script>
+{% if course.kind == 'sql' %}<script src="{% static 'vendor/sqljs/sql-wasm.js' %}"></script>{% endif %}
+<script src="{% static 'js/course.js' %}"></script>{% endblock %}

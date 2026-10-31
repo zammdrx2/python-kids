@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}{{ t.site_title }}{% endblock %}
+{% block content %}
+<h1 class="h1">{{ ct.choose_course }}</h1>
+<p class="lead-text">{{ ct.choose_lead }}</p>
+<div class="courses">
+  {% for c in courses %}
+  <a class="course-card" href="{% url 'course_home' c.course.slug %}" style="background: {{ c.course.color }}">
+    <span class="course-card__icon" aria-hidden="true">{% if c.course.kind == 'web' %}&lt;/&gt;{% elif c.course.kind == 'js' %}JS{% elif c.course.kind == 'sql' %}SQL{% else %}Py{% endif %}</span>
+    <span class="course-card__title">{{ c.title }}</span>
+    <span class="course-card__desc">{{ c.desc }}</span>
+    <span class="course-card__meta">{{ c.lessons }} {{ c.lessons_word }}{% if user.is_authenticated %} · {{ c.done }} {{ ct.done_count }}{% endif %}</span>
+    <span class="course-card__btn">{{ ct.open_course }}</span>
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}

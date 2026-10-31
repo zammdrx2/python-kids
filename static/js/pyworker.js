@@ -37,10 +37,24 @@ def __run(code, inputs, show_prompt):
         if frames:
             text = "Traceback (most recent call last):\\n" + "".join(traceback.format_list(frames))
         text += "".join(traceback.format_exception_only(type(e), e))
-        error = {"type": type(e).__name__, "text": text}
+        line = None
+        if isinstance(e, SyntaxError):
+            line = e.lineno
+        elif frames:
+            line = frames[-1].lineno
+        error = {"type": type(e).__name__, "text": text, "line": line}
     finally:
         sys.stdout, sys.stderr = old_out, old_err
     return json.dumps({"stdout": out.getvalue(), "error": error})
+
+def __lint(code):
+    # Только проверка записи программы, без запуска
+    try:
+        compile(code, "<код>", "exec")
+        return "null"
+    except SyntaxError as e:
+        return json.dumps({"type": type(e).__name__, "line": e.lineno or 1,
+                           "col": e.offset or 1, "msg": e.msg})
 `;
 
 self.onmessage = async (event) => {
@@ -56,6 +70,13 @@ self.onmessage = async (event) => {
     const py = await pyodideReady;
     if (type === "init") {
       self.postMessage({ id, ok: true });
+      return;
+    }
+    if (type === "lint") {
+      const lint = py.globals.get("__lint");
+      const res = lint(code);
+      lint.destroy();
+      self.postMessage({ id, ok: true, lint: JSON.parse(res) });
       return;
     }
     const run = py.globals.get("__run");

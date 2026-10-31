@@ -9,12 +9,12 @@ class CoreTests(TestCase):
             "first_name": "Айжан", "last_name": "Серикова", "username": "aizhan",
             "password1": "kodtap2026", "password2": "kodtap2026",
         })
-        self.assertRedirects(r, reverse("course_home"))
+        self.assertRedirects(r, reverse("home"))
         self.assertTrue(get_user_model().objects.filter(username="aizhan").exists())
 
     def test_language_switch(self):
         self.client.post(reverse("set_language"), {"lang": "kk", "next": "/"})
-        r = self.client.get(reverse("course_home"))
+        r = self.client.get(reverse("home"))
         self.assertContains(r, "Балаларға")
 
     def test_language_switch_rejects_external_redirect(self):

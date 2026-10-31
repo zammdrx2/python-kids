@@ -12,8 +12,63 @@
   const WORKER_URL = root.dataset.worker;
   const CSRF = root.dataset.csrf;
   const LOGGED_IN = root.dataset.auth === "1";
+  const JS_WORKER_URL = root.dataset.jsworker;
+  const SQL_BASE = root.dataset.sqljs;
   const RUN_TIMEOUT = 5000;    // мс на один запуск
   const LOAD_TIMEOUT = 60000;  // мс на загрузку Python
+
+  // ---------- Подсветка кода в теории ----------
+  const KW = new Set("False None True and as break continue def del elif else for from if import in is lambda not or pass return while with".split(" "));
+  const BI = new Set("print input int float str len range list dict set sum min max abs round sorted enumerate map type bool".split(" "));
+  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  function highlight(src) {
+    const re = /(#.*$)|("(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*')|(\b\d+(?:\.\d+)?\b)|([A-Za-z_]\w*)/gm;
+    let out = "", last = 0, m;
+    while ((m = re.exec(src))) {
+      out += esc(src.slice(last, m.index));
+      const [tok, com, str, num, word] = m;
+      if (com) out += `<span class="tok-com">${esc(tok)}</span>`;
+      else if (str) out += `<span class="tok-str">${esc(tok)}</span>`;
+      else if (num) out += `<span class="tok-num">${tok}</span>`;
+      else if (KW.has(word)) out += `<span class="tok-kw">${tok}</span>`;
+      else if (BI.has(word)) out += `<span class="tok-fn">${tok}</span>`;
+      else out += esc(tok);
+      last = re.lastIndex;
+    }
+    return out + esc(src.slice(last));
+  }
+  document.querySelectorAll("pre.js-hl code").forEach((c) => { c.innerHTML = highlight(c.textContent); });
+
+  // ---------- Шаги урока: на экране одна часть (теория или одно задание) ----------
+  const panels = Array.from(document.querySelectorAll(".step-panel"));
+  const pills = Array.from(document.querySelectorAll(".steps a"));
+  function showStep(id, scroll) {
+    if (!document.getElementById(id)) id = panels[0].id;
+    panels.forEach((p) => {
+      p.hidden = p.id !== id;
+      const cmEl = p.querySelector(".CodeMirror");
+      if (!p.hidden && cmEl && cmEl.CodeMirror) cmEl.CodeMirror.refresh();
+    });
+    pills.forEach((a) => {
+      if (a.hash === "#" + id) a.setAttribute("aria-current", "step");
+      else a.removeAttribute("aria-current");
+    });
+    if (scroll) {
+      const nav = document.querySelector(".steps");
+      window.scrollTo({ top: Math.max(0, nav.getBoundingClientRect().top + window.scrollY - 12) });
+    }
+  }
+  if (panels.length) {
+    showStep(location.hash.slice(1) || panels[0].id, false);
+    document.addEventListener("click", (e) => {
+      const a = e.target.closest('a[href^="#step-"]');
+      if (!a) return;
+      e.preventDefault();
+      history.replaceState(null, "", a.hash);
+      showStep(a.hash.slice(1), true);
+    });
+    window.addEventListener("hashchange", () => showStep(location.hash.slice(1), true));
+  }
 
   // ---------- Worker ----------
   let worker = null, ready = null, seq = 0;
@@ -34,7 +89,7 @@
       const id = ++seq;
       const timer = setTimeout(() => {
         pending.delete(id);
-        worker.terminate();          // останавливаем зависшую программу
+        if (worker) worker.terminate();  // останавливаем зависшую программу
         worker = null; ready = null;
         resolve({ ok: false, timeout: true });
       }, timeout);
@@ -43,11 +98,102 @@
     });
   }
 
+  let busy = 0;
   async function runPython(code, inputs, showPrompt) {
     if (!worker) startWorker();
+    busy++;
+    try {
+      const init = await ready;
+      if (!init || !init.ok) return init || { ok: false, fatal: "init failed" };
+      return await call({ type: "run", code, inputs, showPrompt }, RUN_TIMEOUT);
+    } finally {
+      busy--;
+    }
+  }
+
+  // Проверка записи программы без запуска (для подсветки ошибок во время набора)
+  async function lintCode(code) {
+    if (!worker || !ready || busy) return undefined;  // не загружаем Python ради проверки
     const init = await ready;
-    if (!init || !init.ok) return init || { ok: false, fatal: "init failed" };
-    return call({ type: "run", code, inputs, showPrompt }, RUN_TIMEOUT);
+    if (!init || !init.ok || busy) return undefined;
+    const res = await call({ type: "lint", code }, 3000);
+    return res && res.ok ? res.lint : undefined;
+  }
+
+  // ---------- JavaScript: отдельный Worker ----------
+  let jsw = null, jsSeq = 0;
+  const jsPending = new Map();
+  function runJS(code, inputs, showPrompt) {
+    if (!jsw) {
+      jsw = new Worker(JS_WORKER_URL);
+      jsw.onmessage = (e) => {
+        const p = jsPending.get(e.data.id);
+        if (p) { clearTimeout(p.timer); jsPending.delete(e.data.id); p.resolve(e.data); }
+      };
+    }
+    return new Promise((resolve) => {
+      const id = ++jsSeq;
+      const timer = setTimeout(() => {
+        jsPending.delete(id);
+        if (jsw) jsw.terminate();
+        jsw = null;
+        resolve({ ok: false, timeout: true });
+      }, RUN_TIMEOUT);
+      jsPending.set(id, { resolve, timer });
+      jsw.postMessage({ id, code, inputs, showPrompt });
+    });
+  }
+  function lintJS(code) {
+    try { new Function("console", "input", "prompt", "alert", code); return null; } catch (e) {
+      return e instanceof SyntaxError ? { type: "SyntaxError", msg: e.message, line: null } : null;
+    }
+  }
+
+  // ---------- SQL: база SQLite прямо в браузере (sql.js) ----------
+  let sqlReady = null;
+  function getSQL() {
+    if (!sqlReady) sqlReady = window.initSqlJs({ locateFile: (f) => SQL_BASE + f });
+    return sqlReady;
+  }
+  async function runSQL(setup, query, after) {
+    let SQL;
+    try { SQL = await getSQL(); } catch (e) { return { ok: false, fatal: "SQL: " + e }; }
+    const db = new SQL.Database();
+    try {
+      if (setup) db.run(setup);
+      let res;
+      if (after) { db.run(query); res = db.exec(after); } else res = db.exec(query);
+      const last = res[res.length - 1] || { columns: [], values: [] };
+      return { ok: true, columns: last.columns, rows: last.values };
+    } catch (e) {
+      return { ok: true, error: { type: "SQLError", text: String(e.message || e) } };
+    } finally {
+      db.close();
+    }
+  }
+  const cell = (v) => (v === null ? "NULL" : String(v));
+  function sameRows(got, exp, ordered) {
+    if (!got || got.rows.length !== exp.rows.length) return false;
+    const a = got.rows.map((r) => r.map(cell).join("\u0001"));
+    const b = exp.rows.map((r) => r.map(cell).join("\u0001"));
+    if ((got.rows[0] || []).length !== (exp.rows[0] || []).length) return false;
+    if (!ordered) { a.sort(); b.sort(); }
+    return a.every((x, i) => x === b[i]);
+  }
+  function tableEl(columns, rows) {
+    const wrap = el("div", "sqltable");
+    const t = el("table");
+    const head = el("tr");
+    (columns || []).forEach((c) => head.appendChild(el("th", "", c)));
+    t.appendChild(head);
+    rows.slice(0, 50).forEach((r) => {
+      const tr = el("tr");
+      r.forEach((v) => tr.appendChild(el("td", "", cell(v))));
+      t.appendChild(tr);
+    });
+    wrap.appendChild(t);
+    if (!rows.length) wrap.appendChild(el("p", "muted", T.no_rows || "0"));
+    return wrap;
   }
 
   // ---------- Подсказки по ошибкам для детей ----------
@@ -62,6 +208,11 @@
       IndexError: "Обращение к элементу, которого нет: индексы начинаются с 0 и заканчиваются на len() - 1.",
       EOFError: "Программа вызвала input() больше раз, чем есть входных данных.",
       KeyError: "В словаре нет такого ключа.",
+      ReferenceError: "Такой переменной или функции нет. Проверьте опечатки и объявлена ли переменная через let.",
+      RangeError: "Значение вне допустимых границ — например, бесконечная рекурсия или неверная длина массива.",
+      "JS:SyntaxError": "Ошибка в записи программы: проверьте круглые и фигурные скобки, кавычки и точки с запятой.",
+      "JS:TypeError": "Действие с неподходящим значением: например, вызвали как функцию то, что функцией не является.",
+      SQLError: "Ошибка в запросе: проверьте названия таблиц и столбцов, запятые и кавычки у текста.",
     },
     kk: {
       SyntaxError: "Бағдарлама жазылуында қате бар: жақшаларды, тырнақшаларды және if / for / while / def кейінгі қос нүктені тексеріңіз.",
@@ -73,6 +224,11 @@
       IndexError: "Жоқ элементке жүгіну: индекстер 0-ден басталып, len() - 1-де аяқталады.",
       EOFError: "Бағдарлама input()-ты кіріс деректерден көп рет шақырды.",
       KeyError: "Сөздікте мұндай кілт жоқ.",
+      ReferenceError: "Мұндай айнымалы немесе функция жоқ. Қате жазылмағанын және айнымалы let арқылы жарияланғанын тексеріңіз.",
+      RangeError: "Мән рұқсат етілген шектен тыс — мысалы, шексіз рекурсия немесе массивтің қате ұзындығы.",
+      "JS:SyntaxError": "Бағдарлама жазылуында қате бар: жай және фигуралы жақшаларды, тырнақшаларды және нүктелі үтірлерді тексеріңіз.",
+      "JS:TypeError": "Сәйкес келмейтін мәнмен әрекет: мысалы, функция емес нәрсені функция ретінде шақырдыңыз.",
+      SQLError: "Сұрауда қате бар: кестелер мен бағандардың атауларын, үтірлерді және мәтін тырнақшаларын тексеріңіз.",
     },
   };
 
@@ -87,9 +243,13 @@
     return e;
   }
 
-  function showError(box, error) {
+  const hintFor = (type, kind) => {
+    const h = ERROR_HINTS[LANG] || ERROR_HINTS.ru;
+    return (kind === "js" && h["JS:" + type]) || h[type];
+  };
+  function showError(box, error, kind) {
     box.appendChild(el("pre", "out out--error", error.text));
-    const hint = (ERROR_HINTS[LANG] || ERROR_HINTS.ru)[error.type];
+    const hint = hintFor(error.type, kind);
     if (hint) box.appendChild(el("p", "err-hint", "💡 " + hint));
   }
 
@@ -113,8 +273,18 @@
 
   function markSolved(card) {
     card.classList.add("is-solved");
+    const pill = document.querySelector(`.steps a[data-step="${card.dataset.step}"]`);
+    if (pill) pill.classList.add("is-done");
     const badge = card.querySelector(".task__badge");
     if (badge) badge.hidden = false;
+    // все задания решены — открываем переход к следующему уроку
+    const all = Array.from(document.querySelectorAll(".task"));
+    const nextLink = document.querySelector(".js-next-lesson");
+    if (nextLink && nextLink.hidden && all.every((c) => c.classList.contains("is-solved"))) {
+      nextLink.hidden = false;
+      document.querySelectorAll(".js-next-locked").forEach((e) => { e.hidden = true; });
+      document.querySelectorAll(".js-next-done").forEach((e) => { e.hidden = false; });
+    }
   }
 
   // ---------- Задания ----------
@@ -126,40 +296,192 @@
     const tests = data.tests;
     const starter = data.starter;
     const kind = card.dataset.kind;
+    const textarea = editor;
 
-    // Tab вставляет 4 пробела, Enter сохраняет отступ строки
-    editor.addEventListener("keydown", (e) => {
-      if (e.key === "Tab") {
-        e.preventDefault();
-        editor.setRangeText("    ", editor.selectionStart, editor.selectionEnd, "end");
-      } else if (e.key === "Enter") {
-        const before = editor.value.slice(0, editor.selectionStart);
-        const line = before.split("\n").pop();
-        let indent = line.match(/^\s*/)[0];
-        if (/:\s*$/.test(line)) indent += "    ";
-        e.preventDefault();
-        editor.setRangeText("\n" + indent, editor.selectionStart, editor.selectionEnd, "end");
+    // Сообщение об ошибке под редактором
+    const lintBox = el("div", "lint");
+    lintBox.hidden = true;
+    lintBox.setAttribute("role", "status");
+    (card.querySelector(".stdin-box") || out).before(lintBox);
+
+    // Редактор с подсветкой (CodeMirror); если библиотека не загрузилась — обычное поле
+    let cm = null;
+    if (window.CodeMirror) {
+      cm = window.CodeMirror.fromTextArea(textarea, {
+        mode: { web: "htmlmixed", js: "javascript", sql: "text/x-sqlite" }[kind] || "python", autoCloseTags: kind === "web", lineNumbers: true, indentUnit: 4, tabSize: 4, indentWithTabs: false,
+        matchBrackets: true, autoCloseBrackets: true, viewportMargin: Infinity,
+        extraKeys: {
+          Tab: (c) => (c.somethingSelected() ? c.indentSelection("add") : c.replaceSelection("    ", "end")),
+          "Shift-Tab": (c) => c.indentSelection("subtract"),
+        },
+      });
+      cm.getInputField().setAttribute("aria-label", T.your_code || "code");
+    } else {
+      // Tab вставляет 4 пробела, Enter сохраняет отступ строки
+      textarea.addEventListener("keydown", (e) => {
+        if (e.key === "Tab") {
+          e.preventDefault();
+          textarea.setRangeText("    ", textarea.selectionStart, textarea.selectionEnd, "end");
+        } else if (e.key === "Enter") {
+          const before = textarea.value.slice(0, textarea.selectionStart);
+          const line = before.split("\n").pop();
+          let indent = line.match(/^\s*/)[0];
+          if (/:\s*$/.test(line)) indent += "    ";
+          e.preventDefault();
+          textarea.setRangeText("\n" + indent, textarea.selectionStart, textarea.selectionEnd, "end");
+        }
+      });
+    }
+    const getCode = () => (cm ? cm.getValue() : textarea.value);
+    const runner = kind === "js" ? runJS : runPython;
+    const setCode = (v) => { if (cm) cm.setValue(v); else textarea.value = v; };
+
+    // Отметка строки с ошибкой
+    let marks = [], markedLine = null;
+    function clearError() {
+      marks.forEach((m) => m.clear());
+      marks = [];
+      if (cm && markedLine !== null) cm.removeLineClass(markedLine, "background", "cm-err-line");
+      markedLine = null;
+      lintBox.hidden = true;
+    }
+    function markError(err) {
+      clearError();
+      if (!err) return;
+      const total = cm ? cm.lineCount() : getCode().split("\n").length;
+      const ln = err.line ? Math.max(1, Math.min(err.line, total)) - 1 : null;
+      if (cm && ln !== null) {
+        cm.addLineClass(ln, "background", "cm-err-line");
+        markedLine = ln;
+        const len = cm.getLine(ln).length;
+        const from = err.col ? Math.max(0, Math.min(err.col - 1, len - 1)) : 0;
+        if (len) marks.push(cm.markText({ line: ln, ch: from }, { line: ln, ch: len }, { className: "cm-err-mark" }));
       }
+      const hint = hintFor(err.type, kind);
+      const where = ln === null ? "" : (LANG === "kk" ? `${ln + 1}-жол: ` : `Строка ${ln + 1}: `);
+      lintBox.replaceChildren(el("strong", "", "⚠ " + where), document.createTextNode(hint || err.msg || err.type));
+      if (err.msg && hint) lintBox.appendChild(el("span", "lint__py", " (" + err.msg + ")"));
+      lintBox.hidden = false;
+    }
+
+    // Проверка записи через небольшую паузу после набора
+    let lintTimer = null, lintSeq = 0;
+    const scheduleLint = () => {
+      clearTimeout(lintTimer);
+      lintTimer = setTimeout(async () => {
+        const my = ++lintSeq;
+        const res = kind === "js" ? lintJS(getCode()) : await lintCode(getCode());
+        if (my === lintSeq && res !== undefined) markError(res);
+      }, 700);
+    };
+    if (kind === "tested" || kind === "project" || kind === "js") {
+      if (cm) cm.on("change", scheduleLint);
+      else textarea.addEventListener("input", scheduleLint);
+    }
+
+    // HTML/CSS: живой предпросмотр страницы
+    const frame = card.querySelector("iframe.preview");
+    const renderPage = (code) => new Promise((resolve) => {
+      if (!frame) return resolve(null);
+      frame.onload = () => resolve(frame.contentDocument);
+      frame.srcdoc = code;
     });
+    if (kind === "web" && frame) {
+      let t = null;
+      const live = () => { clearTimeout(t); t = setTimeout(() => renderPage(getCode()), 300); };
+      if (cm) cm.on("change", live); else textarea.addEventListener("input", live);
+      renderPage(getCode());
+    }
+
+    async function runSqlTask() {
+      out.replaceChildren(el("p", "muted", T.running));
+      const res = await runSQL((tests[0] || {}).setup, getCode(), (tests[0] || {}).after);
+      out.replaceChildren(el("p", "out__label", T.sql_result || T.output));
+      if (!res.ok) return showFatal(out, res);
+      if (res.error) { showError(out, res.error, kind); return; }
+      out.appendChild(tableEl(res.columns, res.rows));
+    }
+
+    async function checkSql() {
+      const code = getCode();
+      out.replaceChildren(el("p", "muted", T.checking));
+      let passed = 0, shownFail = false;
+      const list = el("ol", "tests");
+      for (let i = 0; i < tests.length; i++) {
+        const t = tests[i];
+        const res = await runSQL(t.setup, code, t.after);
+        const ok = res.ok && !res.error && sameRows(res, t.expected, t.ordered);
+        passed += ok;
+        const li = el("li", "test " + (ok ? "test--ok" : "test--fail"));
+        li.appendChild(el("span", "test__title", `${T.test} ${i + 1}: ${ok ? "✓ " + T.passed : "✗ " + T.failed}`));
+        if (!ok && !shownFail) {
+          shownFail = true;
+          li.appendChild(el("span", "test__label", T.expected));
+          li.appendChild(tableEl(t.expected.columns, t.expected.rows));
+          li.appendChild(el("span", "test__label", T.got));
+          if (!res.ok) showFatal(li, res);
+          else if (res.error) showError(li, res.error, kind);
+          else li.appendChild(tableEl(res.columns, res.rows));
+        }
+        list.appendChild(li);
+      }
+      const summary = passed === tests.length
+        ? el("p", "out--ok", "🎉 " + T.all_passed)
+        : el("p", "out--error", `${T.some_failed}: ${passed} / ${tests.length}`);
+      out.replaceChildren(summary, list);
+      const r = await save(card, code, passed);
+      if (!LOGGED_IN) out.appendChild(el("p", "muted", T.login_to_save));
+      else if (!r || !r.ok) out.appendChild(el("p", "out--error", T.save_error));
+      if (passed === tests.length || (r && r.solved)) markSolved(card);
+      out.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+
+    async function checkWeb() {
+      const code = getCode();
+      const doc = await renderPage(code);
+      const checks = tests;
+      const res = doc ? window.runWebChecks(doc, frame.contentWindow, checks) : checks.map(() => false);
+      const passed = res.filter(Boolean).length;
+      const list = el("ol", "tests");
+      res.forEach((ok, i) => {
+        const c = checks[i];
+        const msg = Array.isArray(c.msg) ? (LANG === "kk" && c.msg[1] ? c.msg[1] : c.msg[0]) : (c.msg || c.sel);
+        const li = el("li", "test " + (ok ? "test--ok" : "test--fail"));
+        li.appendChild(el("span", "test__title", (ok ? "✓ " : "✗ ") + msg));
+        list.appendChild(li);
+      });
+      const summary = passed === checks.length
+        ? el("p", "out--ok", "🎉 " + T.web_all_passed)
+        : el("p", "out--error", `${T.web_some_failed}: ${passed} / ${checks.length}`);
+      out.replaceChildren(summary, list);
+      const r = await save(card, code, passed);
+      if (!LOGGED_IN) out.appendChild(el("p", "muted", T.login_to_save));
+      else if (!r || !r.ok) out.appendChild(el("p", "out--error", T.save_error));
+      if (passed === checks.length || (r && r.solved)) markSolved(card);
+      out.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
 
     card.querySelector(".js-reset")?.addEventListener("click", () => {
-      if (confirm(T.reset_confirm)) editor.value = starter;
+      if (confirm(T.reset_confirm)) { setCode(starter); clearError(); if (kind === "web") renderPage(starter); }
     });
 
     // ▶ Запустить
-    card.querySelector(".js-run").addEventListener("click", async () => {
-      out.replaceChildren(el("p", "muted", worker ? T.running : T.loading_python));
-      const res = await runPython(editor.value, splitInput(inputBox.value), true);
+    card.querySelector(".js-run")?.addEventListener("click", async () => {
+      out.replaceChildren(el("p", "muted", (worker || kind === "js") ? T.running : T.loading_python));
+      if (kind === "sql") return runSqlTask();
+      const res = await runner(getCode(), splitInput(inputBox.value), true);
       out.replaceChildren(el("p", "out__label", T.output));
       if (!res.ok) return showFatal(out, res);
       out.appendChild(el("pre", "out", res.stdout || T.no_output));
-      if (res.error) showError(out, res.error);
+      if (res.error) { showError(out, res.error, kind); markError(res.error); } else clearError();
       card.dataset.ranOk = res.error ? "" : "1";
     });
 
     // ✓ Проверить / Сдать проект
     card.querySelector(".js-check").addEventListener("click", async () => {
-      const code = editor.value;
+      if (kind === "web") return checkWeb();
+      if (kind === "sql") return checkSql();
+      const code = getCode();
       if (kind === "project") {
         if (!code.trim() || code.trim() === starter.trim()) {
           out.replaceChildren(el("p", "out--error", T.project_need_code));
@@ -171,25 +493,26 @@
         return;
       }
 
-      out.replaceChildren(el("p", "muted", worker ? T.checking : T.loading_python));
-      let passed = 0;
+      out.replaceChildren(el("p", "muted", (worker || kind === "js") ? T.checking : T.loading_python));
+      let passed = 0, shownFail = false;
       const results = el("ol", "tests");
       for (let i = 0; i < tests.length; i++) {
         const t = tests[i];
-        const res = await runPython(code, splitInput(t.input), false);
+        const res = await runner(code, splitInput(t.input), false);
         const li = el("li", "test");
         const ok = res.ok && !res.error && normalize(res.stdout) === normalize(t.output);
         passed += ok;
         li.classList.add(ok ? "test--ok" : "test--fail");
         li.appendChild(el("span", "test__title", `${T.test} ${i + 1}: ${ok ? "✓ " + T.passed : "✗ " + T.failed}`));
-        if (!ok) {
+        if (!ok && !shownFail) {
+          shownFail = true;  // подробности только по первому непройденному тесту
           if (t.input) { li.appendChild(el("span", "test__label", T.given_input)); li.appendChild(el("pre", "out", t.input)); }
           li.appendChild(el("span", "test__label", T.expected)); li.appendChild(el("pre", "out", t.output));
           li.appendChild(el("span", "test__label", T.got));
           if (!res.ok) showFatal(li, res);
           else {
             li.appendChild(el("pre", "out", res.stdout || T.no_output));
-            if (res.error) showError(li, res.error);
+            if (res.error) { showError(li, res.error, kind); markError(res.error); }
           }
         }
         results.appendChild(li);
@@ -202,10 +525,13 @@
       const r = await save(card, code, passed);
       if (!LOGGED_IN) out.appendChild(el("p", "muted", T.login_to_save));
       else if (!r || !r.ok) out.appendChild(el("p", "out--error", T.save_error));
-      if (passed === tests.length || (r && r.solved)) markSolved(card);
+      if (passed === tests.length || (r && r.solved)) { markSolved(card); clearError(); }
+      out.scrollIntoView({ behavior: "smooth", block: "nearest" });
     });
   });
 
   // Заранее загружаем Python, пока ученик читает теорию
-  if (document.querySelector(".task")) setTimeout(() => { if (!worker) startWorker(); }, 1500);
+  if (document.querySelector('.task[data-kind="tested"], .task[data-kind="project"]')) {
+    setTimeout(() => { if (!worker) startWorker(); }, 1500);
+  }
 })();

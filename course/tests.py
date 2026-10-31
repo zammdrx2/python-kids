@@ -16,8 +16,13 @@ class CourseContentTests(TestCase):
         call_command("load_course", verbosity=0)
 
     def test_24_lessons_loaded(self):
-        self.assertEqual(Lesson.objects.count(), 24)
-        self.assertEqual(Lesson.objects.filter(is_project=True).count(), 5)
+        self.assertEqual(Lesson.objects.filter(course__slug="python").count(), 24)
+        self.assertEqual(Lesson.objects.filter(course__slug="web").count(), 24)
+        for lesson in Lesson.objects.filter(course__slug="python"):
+            self.assertGreaterEqual(lesson.tasks.count(), 6, lesson)
+        self.assertEqual(Lesson.objects.filter(course__slug="python", is_project=True).count(), 5)
+        self.assertTrue(all(t.tests for t in Task.objects.filter(kind=Task.Kind.WEB)))
+        self.assertEqual(Task.objects.filter(kind=Task.Kind.WEB).count(), 120)
         self.assertEqual(Task.objects.filter(kind=Task.Kind.PROJECT).count(), 6)
 
     def test_every_solution_passes_its_tests(self):
@@ -62,8 +67,11 @@ class SubmissionTests(TestCase):
         self.assertTrue(sub.solved)
 
     def test_pages_and_submit_view(self):
-        self.assertEqual(self.client.get(reverse("course_home")).status_code, 200)
-        r = self.client.get(reverse("course_lesson", args=[1]))
+        self.assertEqual(self.client.get(reverse("home")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("course_home", args=["python"])).status_code, 200)
+        self.assertEqual(self.client.get(reverse("course_module", args=["python", 2])).status_code, 200)
+        self.assertEqual(self.client.get(reverse("course_module", args=["python", 99])).status_code, 404)
+        r = self.client.get(reverse("course_lesson", args=["python", 1]))
         self.assertContains(r, "print")
         url = reverse("course_submit", args=[self.task.id])
         self.assertEqual(self.client.post(url, "{}", content_type="application/json").status_code, 302)
@@ -75,3 +83,63 @@ class SubmissionTests(TestCase):
     def test_progress_page_staff_only(self):
         self.client.login(username="kid", password="pass12345")
         self.assertEqual(self.client.get(reverse("course_progress")).status_code, 302)
+
+
+class LessonLockTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command("load_course", verbosity=0)
+        cls.user = get_user_model().objects.create_user("kid2", password="pass12345")
+        cls.teacher = get_user_model().objects.create_user("teacher", password="pass12345", is_staff=True)
+
+    def test_next_lesson_locked_until_previous_done(self):
+        self.client.login(username="kid2", password="pass12345")
+        r = self.client.get(reverse("course_lesson", args=["python", 2]))
+        self.assertRedirects(r, reverse("course_module", args=["python", 1]))
+        task2 = Task.objects.filter(lesson__number=2).first()
+        r = self.client.post(reverse("course_submit", args=[task2.id]), json.dumps({"code": "x", "passed": 1}),
+                             content_type="application/json")
+        self.assertEqual(r.status_code, 403)
+        for t in Task.objects.filter(lesson__number=1):
+            record_submission(self.user, t, (t.starter_code or "") + "\nprint(1)", len(t.tests), len(t.tests))
+        self.assertEqual(self.client.get(reverse("course_lesson", args=["python", 2])).status_code, 200)
+        self.assertEqual(self.client.get(reverse("course_lesson", args=["python", 3])).status_code, 302)
+
+    def test_guest_sees_only_first_lesson(self):
+        self.assertEqual(self.client.get(reverse("course_lesson", args=["python", 1])).status_code, 200)
+        self.assertEqual(self.client.get(reverse("course_lesson", args=["python", 2])).status_code, 302)
+
+    def test_teacher_sees_everything(self):
+        self.client.login(username="teacher", password="pass12345")
+        self.assertEqual(self.client.get(reverse("course_lesson", args=["python", 24])).status_code, 200)
+
+
+class MultiCourseTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command("load_course", verbosity=0)
+        cls.user = get_user_model().objects.create_user("kid3", password="pass12345")
+
+    def test_course_pages(self):
+        r = self.client.get(reverse("home"))
+        self.assertContains(r, "HTML")
+        self.assertEqual(self.client.get(reverse("course_home", args=["web"])).status_code, 200)
+        self.assertEqual(self.client.get(reverse("course_home", args=["nope"])).status_code, 404)
+        r = self.client.get(reverse("course_lesson", args=["web", 1]))
+        self.assertContains(r, "iframe")
+        self.assertContains(self.client.get(reverse("course_lesson", args=["js", 1])), "jsworker.js")
+        self.assertContains(self.client.get(reverse("course_lesson", args=["sql", 1])), "sql-wasm.js")
+        self.assertEqual(Lesson.objects.filter(course__slug="js").count(), 24)
+        self.assertEqual(Lesson.objects.filter(course__slug="sql").count(), 24)
+
+    def test_legacy_urls_redirect_to_python(self):
+        r = self.client.get("/lesson/1/")
+        self.assertRedirects(r, reverse("course_lesson", args=["python", 1]), status_code=301)
+
+    def test_locks_are_per_course(self):
+        self.client.login(username="kid3", password="pass12345")
+        for t in Task.objects.filter(lesson__course__slug="python", lesson__number=1):
+            record_submission(self.user, t, "x\nprint(1)", len(t.tests), len(t.tests))
+        # первый урок веб-курса открыт, второй — нет, несмотря на прогресс в Python
+        self.assertEqual(self.client.get(reverse("course_lesson", args=["web", 1])).status_code, 200)
+        self.assertEqual(self.client.get(reverse("course_lesson", args=["web", 2])).status_code, 302)

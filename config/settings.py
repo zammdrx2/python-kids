@@ -115,8 +115,8 @@ WHITENOISE_USE_FINDERS = True
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 LOGIN_URL = "login"
-LOGIN_REDIRECT_URL = "course_home"
-LOGOUT_REDIRECT_URL = "course_home"
+LOGIN_REDIRECT_URL = "home"
+LOGOUT_REDIRECT_URL = "home"
 
 # Количество вопросов в одном тесте
 QUESTIONS_PER_TOPIC_TEST = 10

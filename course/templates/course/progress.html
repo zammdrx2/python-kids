@@ -1,17 +1,18 @@
 {% extends "base.html" %}
 {% block title %}{{ ct.group_progress }} · {{ ct.course }}{% endblock %}
 {% block content %}
-<p class="eyebrow"><a href="{% url 'course_home' %}">{{ ct.course }}</a></p>
-<h1>{{ ct.group_progress }}</h1>
-<p class="muted small">{{ ct.legend }}</p>
+<a class="back" href="{% url 'home' %}">← {{ ct.all_courses }}</a>
+<h1 class="h1">{{ ct.group_progress }}</h1>
+<nav class="course-tabs" aria-label="{{ ct.courses }}">{% for c in courses %}<a href="?course={{ c.course.slug }}"{% if c.course == current %} aria-current="page"{% endif %}>{{ c.title }}</a>{% endfor %}</nav>
+<p class="muted">{{ ct.legend }}</p>
 {% if rows %}
-<div class="card table-wrap">
+<div class="panel table-wrap">
   <table class="progress-table">
-    <thead><tr><th>{{ ct.student }}</th>{% for l in lessons %}<th title="{{ l.title_ru }}">{{ l.number }}</th>{% endfor %}<th>✓</th><th>{{ ct.points }}</th></tr></thead>
+    <thead><tr><th scope="col">{{ ct.student }}</th>{% for l in lessons %}<th scope="col" title="{{ l.title_ru }}">{{ l.number }}</th>{% endfor %}<th scope="col">✓</th><th scope="col">{{ ct.points }}</th></tr></thead>
     <tbody>
       {% for r in rows %}
       <tr>
-        <td class="progress-table__name">{{ r.user.get_full_name|default:r.user.username }}</td>
+        <th scope="row" class="progress-table__name">{{ r.user.get_full_name|default:r.user.username }}</th>
         {% for c in r.cells %}<td class="cell cell--{{ c.state }}" title="{{ c.n }} / {{ c.total }}">{% if c.state == 'done' %}✓{% elif c.state == 'part' %}{{ c.n }}{% endif %}</td>{% endfor %}
         <td><strong>{{ r.done }}</strong></td><td><strong>{{ r.points }}</strong></td>
       </tr>

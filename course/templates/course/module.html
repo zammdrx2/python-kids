@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ ct.module }} {{ m.module.number }}. {{ m.title }}{% endblock %}
+{% block topstyle %}style="background: {{ m.color }}"{% endblock %}
+{% block band %}
+<div class="band wrap">
+  <a class="back" href="{% url 'course_home' course.slug %}">← {{ course_title }}</a>
+  <h1 class="band__title">{{ m.title }}</h1>
+  <p class="band__sub">{{ ct.module }} {{ m.module.number }} · {{ m.desc }}</p>
+</div>
+{% endblock %}
+{% block content %}
+<ol class="lessons">
+  {% for l in m.lessons %}
+  <li>
+    {% if l.locked %}
+    <div class="lesson-card lesson-card--locked" aria-disabled="true">
+      <span class="lesson-card__num lesson-card__num--locked" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2.5" fill="currentColor"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2.4"></path></svg></span>
+      <span class="lesson-card__body">
+        <span class="lesson-card__title">{{ l.title }}{% if l.lesson.is_project %} <span class="tag">{{ ct.project }}</span>{% endif %}</span>
+        <span class="lesson-card__goal">{{ ct.locked_after }} {{ l.lesson.number|add:"-1" }}</span>
+      </span>
+    </div>
+    {% else %}
+    <a class="lesson-card lesson-card--{{ l.state }}" href="{% url 'course_lesson' course.slug l.lesson.number %}">
+      <span class="lesson-card__num" style="background: {{ m.color }}">{% if l.state == 'done' %}✓{% else %}{{ l.lesson.number|stringformat:"02d" }}{% endif %}</span>
+      <span class="lesson-card__body">
+        <span class="lesson-card__title">{{ l.title }}{% if l.lesson.is_project %} <span class="tag">{{ ct.project }}</span>{% endif %}</span>
+        <span class="lesson-card__goal">{{ l.goal }}</span>
+      </span>
+      <span class="lesson-card__count">{{ l.progress.solved }} / {{ l.progress.total }}<span class="sr"> {{ ct.tasks_of }}</span></span>
+    </a>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ol>
+{% endblock %}

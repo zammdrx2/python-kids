@@ -3,42 +3,55 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#F4F6FA">
   <title>{% block title %}{{ t.site_title }}{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  {% block head %}{% endblock %}
   <link rel="stylesheet" href="{% static 'css/style.css' %}">
 </head>
 <body>
-  <header class="topbar">
-    <div class="wrap topbar__inner">
-      <a class="brand" href="{% url 'course_home' %}"><span class="brand__mark">&gt;_</span> {{ t.brand }}</a>
-      <nav class="nav">
-        <a href="{% url 'course_home' %}">{{ t.lessons }}</a>
+  <div class="decor" aria-hidden="true">
+    <span class="decor__shape decor__shape--circle"></span>
+    <span class="decor__shape decor__shape--square"></span>
+    <span class="decor__shape decor__shape--ring"></span>
+    <span class="decor__shape decor__shape--pill"></span>
+    <span class="decor__glyph decor__glyph--1">{ }</span>
+    <span class="decor__glyph decor__glyph--2">&lt;/&gt;</span>
+    <span class="decor__glyph decor__glyph--3">( )</span>
+    <span class="decor__glyph decor__glyph--4">;</span>
+  </div>
+  <a class="skip" href="#content">{{ t.skip }}</a>
+  <div class="top" {% block topstyle %}{% endblock %}>
+    <header class="topbar wrap">
+      <a class="brand" href="{% url 'home' %}">python<span>kids</span></a>
+      <nav class="nav" aria-label="{{ t.lessons }}">
+        {% if user.is_staff %}
+          <a href="{% url 'course_progress' %}">{{ t.group }}</a>
+          <a href="{% url 'admin:index' %}">{{ t.admin }}</a>
+        {% endif %}
+        <form method="post" action="{% url 'set_language' %}" class="lang">{% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <button name="lang" value="ru" class="{% if lang == 'ru' %}is-active{% endif %}" aria-pressed="{% if lang == 'ru' %}true{% else %}false{% endif %}">RU</button>
+          <button name="lang" value="kk" class="{% if lang == 'kk' %}is-active{% endif %}" aria-pressed="{% if lang == 'kk' %}true{% else %}false{% endif %}">ҚАЗ</button>
+        </form>
         {% if user.is_authenticated %}
-          {% if user.is_staff %}<a href="{% url 'course_progress' %}">{{ t.group }}</a>
-          <a href="{% url 'admin:index' %}">{{ t.admin }}</a>{% endif %}
+          <span class="pill">{{ user.first_name|default:user.username }}{% if points or points == 0 %} · {{ points }} {{ ct.points_short }}{% endif %}</span>
           <form method="post" action="{% url 'logout' %}" class="inline">{% csrf_token %}
             <button class="linkbtn" type="submit">{{ t.logout }}</button>
           </form>
         {% else %}
-          <a href="{% url 'login' %}">{{ t.login }}</a>
+          <a class="linkbtn" href="{% url 'login' %}">{{ t.login }}</a>
           <a class="btn btn--small" href="{% url 'signup' %}">{{ t.signup }}</a>
         {% endif %}
-        <form method="post" action="{% url 'set_language' %}" class="lang">{% csrf_token %}
-          <input type="hidden" name="next" value="{{ request.get_full_path }}">
-          <button name="lang" value="ru" class="{% if lang == 'ru' %}is-active{% endif %}">RU</button>
-          <button name="lang" value="kk" class="{% if lang == 'kk' %}is-active{% endif %}">ҚАЗ</button>
-        </form>
       </nav>
-    </div>
-  </header>
+    </header>
+    {% block band %}{% endblock %}
+  </div>
 
-  <main class="wrap main">
-    {% for m in messages %}<div class="flash">{{ m }}</div>{% endfor %}
-    {% block content %}{% endblock %}
-  </main>
-
-  <footer class="wrap footer">{{ t.site_title }} · Django</footer>
+  {% for m in messages %}<div class="wrap"><div class="flash">{{ m }}</div></div>{% endfor %}
+  <main id="content" class="wrap main">{% block content %}{% endblock %}</main>
   {% block scripts %}{% endblock %}
 </body>
 </html>

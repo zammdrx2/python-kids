@@ -7,7 +7,7 @@
 """
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Sum
 from django.utils import timezone
 
 from .models import Lesson, Submission, Task
@@ -51,21 +51,39 @@ def lesson_progress(user) -> dict[int, dict]:
     return {lid: {"solved": solved.get(lid, 0), "total": n} for lid, n in totals.items()}
 
 
+def lesson_access(user, progress=None) -> dict[int, bool]:
+    """{id урока: открыт ли}. Урок открывается, когда решены все задания предыдущего.
+    Преподавателю (is_staff) открыто всё; гостю — только первый урок."""
+    if progress is None:
+        progress = lesson_progress(user)
+    access, prev_done, course_id = {}, True, None
+    for lesson in Lesson.objects.order_by("course_id", "number"):
+        if lesson.course_id != course_id:  # в каждом курсе первый урок открыт
+            course_id, prev_done = lesson.course_id, True
+        access[lesson.id] = bool(getattr(user, "is_staff", False)) or prev_done
+        p = progress.get(lesson.id, {"solved": 0, "total": 0})
+        prev_done = user.is_authenticated and p["total"] > 0 and p["solved"] >= p["total"]
+    return access
+
+
+def is_lesson_open(user, lesson) -> bool:
+    return lesson_access(user).get(lesson.id, False)
+
+
 def user_points(user) -> int:
     if not user.is_authenticated:
         return 0
     return Submission.objects.filter(user=user, solved=True).aggregate(s=Sum("task__points"))["s"] or 0
 
 
-def group_progress():
-    """Таблица для преподавателя: ученики × уроки."""
-    lessons = list(Lesson.objects.annotate(n=Count("tasks")).order_by("number"))
+def group_progress(course):
+    """Таблица для преподавателя: ученики × уроки одного курса."""
+    lessons = list(Lesson.objects.filter(course=course).annotate(n=Count("tasks")).order_by("number"))
     User = get_user_model()
-    students = (
-        User.objects.filter(is_staff=False, course_submissions__isnull=False).distinct()
-        .annotate(points=Sum("course_submissions__task__points", filter=Q(course_submissions__solved=True)))
-        .order_by("last_name", "first_name", "username")
-    )
+    in_course = Submission.objects.filter(task__lesson__course=course)
+    students = (User.objects.filter(is_staff=False, id__in=in_course.values("user"))
+                .order_by("last_name", "first_name", "username"))
+    points = dict(in_course.filter(solved=True).values("user").annotate(p=Sum("task__points")).values_list("user", "p"))
     solved = {}
     for row in (Submission.objects.filter(solved=True, user__in=students)
                 .values("user", "task__lesson").annotate(n=Count("id"))):
@@ -80,5 +98,5 @@ def group_progress():
             state = "done" if lesson.n and n == lesson.n else ("part" if n else "none")
             done += state == "done"
             cells.append({"n": n, "total": lesson.n, "state": state})
-        rows.append({"user": s, "cells": cells, "points": s.points or 0, "done": done})
+        rows.append({"user": s, "cells": cells, "points": points.get(s.id, 0), "done": done})
     return lessons, rows

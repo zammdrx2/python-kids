@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Lesson, Module, Submission, Task
+from .models import Course, Lesson, Module, Submission, Task
 
 
 class LessonInline(admin.TabularInline):
@@ -10,9 +10,15 @@ class LessonInline(admin.TabularInline):
     show_change_link = True
 
 
+@admin.register(Course)
+class CourseAdmin(admin.ModelAdmin):
+    list_display = ("title_ru", "slug", "kind", "order")
+
+
 @admin.register(Module)
 class ModuleAdmin(admin.ModelAdmin):
-    list_display = ("number", "title_ru", "title_kk")
+    list_display = ("number", "title_ru", "title_kk", "course")
+    list_filter = ("course",)
     inlines = [LessonInline]
 
 
@@ -25,8 +31,8 @@ class TaskInline(admin.StackedInline):
 
 @admin.register(Lesson)
 class LessonAdmin(admin.ModelAdmin):
-    list_display = ("number", "title_ru", "module", "is_project")
-    list_filter = ("module", "is_project")
+    list_display = ("number", "title_ru", "course", "module", "is_project")
+    list_filter = ("course", "module", "is_project")
     inlines = [TaskInline]
 
 
@@ -34,6 +40,6 @@ class LessonAdmin(admin.ModelAdmin):
 class SubmissionAdmin(admin.ModelAdmin):
     """Преподаватель видит код каждого решения."""
     list_display = ("user", "task", "solved", "passed_tests", "total_tests", "attempts", "updated_at")
-    list_filter = ("solved", "task__lesson")
+    list_filter = ("solved", "task__lesson__course", "task__lesson")
     search_fields = ("user__username", "user__last_name")
     readonly_fields = ("user", "task", "code", "passed_tests", "total_tests", "solved", "attempts", "updated_at", "solved_at")
