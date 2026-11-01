@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Course, Lesson, Module, Submission, Task
+from .models import Certificate, Classroom, Course, Lesson, Membership, Module, Submission, Task
 
 
 class LessonInline(admin.TabularInline):
@@ -43,3 +43,24 @@ class SubmissionAdmin(admin.ModelAdmin):
     list_filter = ("solved", "task__lesson__course", "task__lesson")
     search_fields = ("user__username", "user__last_name")
     readonly_fields = ("user", "task", "code", "passed_tests", "total_tests", "solved", "attempts", "updated_at", "solved_at")
+
+
+class MembershipInline(admin.TabularInline):
+    model = Membership
+    extra = 0
+    autocomplete_fields = ("student",)
+
+
+@admin.register(Classroom)
+class ClassroomAdmin(admin.ModelAdmin):
+    list_display = ("name", "teacher", "code", "created_at")
+    search_fields = ("name", "code", "teacher__username", "teacher__last_name")
+    inlines = [MembershipInline]
+
+
+@admin.register(Certificate)
+class CertificateAdmin(admin.ModelAdmin):
+    list_display = ("name", "course", "code", "teacher_name", "issued_at")
+    list_filter = ("course",)
+    search_fields = ("name", "code", "user__username")
+    readonly_fields = ("issued_at",)

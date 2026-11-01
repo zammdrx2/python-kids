@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}{{ ct.join_title }} · {{ t.site_title }}{% endblock %}
+{% block content %}
+<div class="panel auth">
+  <h1 class="h1">{{ ct.join_title }}</h1>
+  <p class="muted">{{ ct.join_lead }}</p>
+  <form method="post">{% csrf_token %}
+    <p><label for="code">{{ ct.code }}</label><input id="code" name="code" value="{{ code }}" maxlength="8" required autocomplete="off" class="code-input"></p>
+    {% if error %}<p class="out--error">{{ error }}</p>{% endif %}
+    <button class="btn btn--wide" type="submit">{{ ct.join_btn }}</button>
+  </form>
+  {% if mine %}
+  <h2 class="h2 section-title">{{ ct.you_are_in }}</h2>
+  <ul class="mine">{% for m in mine %}<li><b>{{ m.classroom.name }}</b> — {{ ct.teacher }}: {{ m.classroom.teacher.get_full_name|default:m.classroom.teacher.username }}</li>{% endfor %}</ul>
+  {% endif %}
+</div>
+{% endblock %}

@@ -11,7 +11,7 @@ from django.views.decorators.http import require_POST
 from core.ui import get_lang
 
 from . import office_checks, services
-from .models import Course, Lesson, Module, Submission, Task
+from .models import Certificate, Course, Lesson, Module, Submission, Task
 from .ui import course_texts
 
 MODULE_COLORS = ["#FFB4A2", "#FFD166", "#8ED1C6", "#B9C2FD", "#F9B4D6", "#A8DC98"]
@@ -114,7 +114,7 @@ def home(request):
         done = sum(1 for i in ids if progress.get(i, {}).get("total") and
                    progress[i]["solved"] >= progress[i]["total"])
         courses.append({"course": c, "title": c.title(lang), "desc": c.desc(lang), "lessons": len(ids), "done": done,
-                        "lessons_word": lessons_word(len(ids), lang)})
+                        "lessons_word": lessons_word(len(ids), lang), "complete": bool(ids) and done == len(ids)})
     return render(request, "course/courses.html", {
         "courses": courses, "ct": course_texts(lang), "points": services.user_points(request.user),
     })
@@ -129,6 +129,8 @@ def course_home(request, course):
         "course": course, "course_title": course.title(lang),
         "modules": modules, "ct": course_texts(lang), "points": services.user_points(request.user),
         "next_item": next_item, "started": any(i["progress"]["solved"] for i in flat),
+        "complete": bool(flat) and all(i["state"] == "done" for i in flat),
+        "cert": Certificate.objects.filter(user=request.user, course=course).first() if request.user.is_authenticated else None,
     })
 
 

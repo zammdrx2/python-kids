@@ -20,9 +20,17 @@ def set_language(request):
 
 def signup(request):
     lang = get_lang(request)
-    form = SignUpForm(request.POST or None, lang=lang)
+    form = SignUpForm(request.POST or None, lang=lang, initial={"class_code": request.GET.get("code", "")})
     if request.method == "POST" and form.is_valid():
         user = form.save()
         login(request, user)
+        from course import services
+        from course.models import Classroom, Membership
+        if form.cleaned_data.get("role") == "teacher":
+            services.make_teacher(user)
+            return redirect("teacher_home")
+        code = form.cleaned_data.get("class_code")
+        if code:
+            Membership.objects.get_or_create(classroom=Classroom.objects.get(code=code), student=user)
         return redirect("home")
     return render(request, "registration/signup.html", {"form": form})

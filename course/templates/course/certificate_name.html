@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}{{ ct.cert_get }} · {{ course_title }}{% endblock %}
+{% block content %}
+<div class="panel auth">
+  <p class="cert-medal" aria-hidden="true">🏅</p>
+  <h1 class="h1">{{ ct.cert_name_title }}</h1>
+  <p class="muted">{{ ct.cert_name_lead }}</p>
+  <form method="post">{% csrf_token %}
+    <p><label for="fn">{{ t.first_name }}</label><input id="fn" name="first_name" value="{{ user.first_name }}" required maxlength="150"></p>
+    <p><label for="ln">{{ t.last_name }}</label><input id="ln" name="last_name" value="{{ user.last_name }}" required maxlength="150"></p>
+    <button class="btn btn--wide" type="submit">{{ ct.cert_issue }}</button>
+  </form>
+</div>
+{% endblock %}

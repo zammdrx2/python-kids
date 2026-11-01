@@ -5,6 +5,14 @@
 <h1 class="h1">{{ course_title }}</h1>
 <p class="lead-text">{{ ct.pick_today }}</p>
 
+{% if complete %}
+<a class="cert-banner" href="{% url 'certificate' course.slug %}">
+  <span class="cert-banner__medal" aria-hidden="true">🏅</span>
+  <span class="cert-banner__text">{{ ct.cert_banner }}</span>
+  <span class="btn">{% if cert %}{{ ct.cert_open }}{% else %}{{ ct.cert_get }}{% endif %}</span>
+</a>
+{% endif %}
+
 {% if next_item %}
 <a class="continue" href="{% url 'course_lesson' course.slug next_item.lesson.number %}">
   <span class="continue__num" style="background: {{ next_item.color }}">{{ next_item.lesson.number|stringformat:"02d" }}</span>

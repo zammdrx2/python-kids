@@ -208,3 +208,78 @@ class OfficeCourseTests(TestCase):
             self.assertEqual(r.status_code, 400)
         r = self.client.get(reverse("course_lesson", args=["excel", 1]))
         self.assertContains(r, 'accept=".xlsx"')
+
+
+class TeacherAndCertificateTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command("load_course", verbosity=0)
+
+    def signup(self, username, role="student", code=""):
+        return self.client.post(reverse("signup"), {
+            "first_name": "Айгерим", "last_name": "Садыкова", "username": username,
+            "password1": "Slozhnyi-pass-2026", "password2": "Slozhnyi-pass-2026", "role": role, "class_code": code})
+
+    def test_teacher_class_flow(self):
+        from .models import Classroom, Membership
+        r = self.signup("teach1", role="teacher")
+        self.assertRedirects(r, reverse("teacher_home"))
+        r = self.client.post(reverse("teacher_home"), {"name": "7 А"})
+        room = Classroom.objects.get(name="7 А")
+        self.assertRedirects(r, reverse("teacher_class", args=[room.pk]))
+        self.client.logout()
+        # ученик вступает по коду при регистрации
+        self.signup("kid_a", code=room.code.lower())
+        self.assertTrue(Membership.objects.filter(classroom=room, student__username="kid_a").exists())
+        # ученику кабинет недоступен
+        self.assertRedirects(self.client.get(reverse("teacher_home")), reverse("home"))
+        self.client.logout()
+        # второй ученик — через страницу вступления, неверный код не принимается
+        self.signup("kid_b")
+        self.assertContains(self.client.post(reverse("join_class"), {"code": "ZZZZZZ"}), "не найден")
+        self.client.post(reverse("join_class"), {"code": room.code})
+        kid_b = get_user_model().objects.get(username="kid_b")
+        t = Task.objects.filter(lesson__course__slug="python", lesson__number=1).first()
+        record_submission(kid_b, t, "print(1)", len(t.tests), len(t.tests))
+        self.client.logout()
+        self.client.login(username="teach1", password="Slozhnyi-pass-2026")
+        r = self.client.get(reverse("teacher_class", args=[room.pk]) + "?course=python")
+        self.assertContains(r, room.code)
+        self.assertContains(r, "Садыкова")
+        self.assertEqual(len(r.context["rows"]), 2)
+        r = self.client.get(reverse("teacher_student", args=[room.pk, kid_b.id]))
+        self.assertContains(r, "print(1)")
+        # чужой учитель не видит класс
+        self.client.logout()
+        self.signup("teach2", role="teacher")
+        self.assertEqual(self.client.get(reverse("teacher_class", args=[room.pk])).status_code, 404)
+        self.client.logout()
+        self.client.login(username="teach1", password="Slozhnyi-pass-2026")
+        self.client.post(reverse("teacher_remove_student", args=[room.pk, kid_b.id]))
+        self.assertEqual(room.memberships.count(), 1)
+
+    def test_certificate(self):
+        from .models import Certificate, Classroom, Membership
+        teacher = get_user_model().objects.create_user("t3", password="x", first_name="Заманбек", last_name="Жумагулов")
+        room = Classroom.objects.create(teacher=teacher, name="Группа")
+        kid = get_user_model().objects.create_user("kid_c", password="pass12345")
+        Membership.objects.create(classroom=room, student=kid)
+        self.client.login(username="kid_c", password="pass12345")
+        url = reverse("certificate", args=["sql"])
+        self.assertRedirects(self.client.get(url), reverse("course_home", args=["sql"]))
+        for t in Task.objects.filter(lesson__course__slug="sql"):
+            record_submission(kid, t, "x", len(t.tests), len(t.tests))
+        self.assertContains(self.client.get(reverse("course_home", args=["sql"])), "Получить сертификат")
+        self.assertContains(self.client.get(url), "first_name")
+        r = self.client.post(url, {"first_name": "Арман", "last_name": "Ахметов"})
+        self.assertRedirects(r, url)
+        cert = Certificate.objects.get(user=kid)
+        self.assertEqual(cert.name, "Арман Ахметов")
+        self.assertEqual(cert.teacher_name, "Заманбек Жумагулов")
+        r = self.client.get(url)
+        self.assertContains(r, "Арман Ахметов")
+        self.assertContains(r, cert.code)
+        self.client.logout()
+        r = self.client.get(reverse("certificate_verify", args=[cert.code.lower()]))
+        self.assertContains(r, "подлинный")
+        self.assertEqual(self.client.get(reverse("certificate_verify", args=["NOPE1234"])).status_code, 404)

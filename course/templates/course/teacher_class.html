@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}{{ room.name }} · {{ t.teacher_cabinet }}{% endblock %}
+{% block content %}
+<a class="back" href="{% url 'teacher_home' %}">← {{ ct.back_to_classes }}</a>
+<h1 class="h1">{{ room.name }}</h1>
+
+<section class="panel invite">
+  <div class="invite__code">
+    <span class="label">{{ ct.code }}</span>
+    <span class="invite__big">{{ room.code }}</span>
+  </div>
+  <div class="invite__text">
+    <h2 class="h2">{{ ct.invite }}</h2>
+    <p>{{ ct.invite_text }}</p>
+    <div class="invite__link">
+      <input class="field js-copy-src" value="{{ join_url }}" readonly aria-label="{{ ct.invite }}">
+      <button type="button" class="btn btn--soft js-copy" data-done="{{ ct.copied }}">{{ ct.copy }}</button>
+    </div>
+  </div>
+</section>
+
+<nav class="course-tabs" aria-label="{{ ct.courses }}">{% for c in courses %}<a href="?course={{ c.course.slug }}"{% if c.course == current %} aria-current="page"{% endif %}>{{ c.title }}</a>{% endfor %}</nav>
+{% if rows %}
+<p class="muted">{{ ct.legend }}</p>
+<div class="panel table-wrap">
+  <table class="progress-table">
+    <thead><tr><th scope="col">{{ ct.student }}</th>{% for l in lessons %}<th scope="col" title="{{ l.title_ru }}">{{ l.number }}</th>{% endfor %}<th scope="col">✓</th><th scope="col">{{ ct.points }}</th><th scope="col">🏅</th><th scope="col">{{ ct.last_active }}</th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <th scope="row" class="progress-table__name"><a href="{% url 'teacher_student' room.pk r.user.id %}">{{ r.user.get_full_name|default:r.user.username }}</a></th>
+        {% for c in r.cells %}<td class="cell cell--{{ c.state }}" title="{{ c.n }} / {{ c.total }}">{% if c.state == 'done' %}✓{% elif c.state == 'part' %}{{ c.n }}{% endif %}</td>{% endfor %}
+        <td><strong>{{ r.done }}</strong></td><td><strong>{{ r.points }}</strong></td>
+        <td>{% if r.cert %}🏅{% endif %}</td>
+        <td class="nowrap muted">{% if r.last %}{{ r.last|date:"d.m H:i" }}{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="muted">{{ ct.no_class_students }}</p>
+{% endif %}
+
+<form method="post" action="{% url 'teacher_delete_class' room.pk %}" class="danger-zone" onsubmit="return confirm('{{ ct.delete_class_confirm|escapejs }}')">{% csrf_token %}
+  <button class="linkbtn linkbtn--danger" type="submit">{{ ct.delete_class }}</button>
+</form>
+<script>
+document.querySelectorAll(".js-copy").forEach((b) => b.addEventListener("click", async () => {
+  const src = document.querySelector(".js-copy-src");
+  try { await navigator.clipboard.writeText(src.value); } catch (e) { src.select(); document.execCommand("copy"); }
+  const old = b.textContent; b.textContent = b.dataset.done; setTimeout(() => { b.textContent = old; }, 1500);
+}));
+</script>
+{% endblock %}

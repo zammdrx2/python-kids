@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ student.get_full_name|default:student.username }} · {{ room.name }}{% endblock %}
+{% block content %}
+<a class="back" href="{% url 'teacher_class' room.pk %}">← {{ room.name }}</a>
+<h1 class="h1">{{ student.get_full_name|default:student.username }}</h1>
+<p class="lead-text">@{{ student.username }} · {{ ct.last_active }}: {% if student.last_login %}{{ student.last_login|date:"d.m.Y H:i" }}{% else %}—{% endif %}</p>
+
+<h2 class="h2 section-title">{{ ct.student_courses }}</h2>
+{% if summary %}
+<div class="classes">
+  {% for s in summary %}
+  <div class="class-card class-card--static" style="background: {{ s.course.color }}">
+    <span class="class-card__name">{{ s.title }}{% if s.cert %} 🏅{% endif %}</span>
+    <span class="class-card__meta">{{ s.solved }} / {{ s.total }} · {{ s.percent }}%</span>
+    <span class="meter" aria-hidden="true"><span style="width: {{ s.percent }}%"></span></span>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<p class="muted">{{ ct.nothing_yet }}</p>
+{% endif %}
+
+{% if recent %}
+<h2 class="h2 section-title">{{ ct.recent_solutions }}</h2>
+<div class="panel solutions">
+  {% for r in recent %}
+  <div class="solution">
+    <div class="solution__head">
+      <span class="solution__state">{% if r.sub.solved %}✓{% else %}✗{% endif %}</span>
+      <span><b>{{ r.task_title }}</b> <span class="muted">· {{ r.course }}, {{ ct.lesson }} {{ r.lesson }} · {{ ct.attempts }}: {{ r.sub.attempts }} · {{ r.sub.updated_at|date:"d.m H:i" }}</span></span>
+    </div>
+    {% if r.show_code and r.sub.code %}<details><summary>{{ ct.show_code }}</summary><pre class="code"><code>{{ r.sub.code }}</code></pre></details>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<form method="post" action="{% url 'teacher_remove_student' room.pk student.id %}" class="danger-zone" onsubmit="return confirm('{{ ct.remove_confirm|escapejs }}')">{% csrf_token %}
+  <button class="linkbtn linkbtn--danger" type="submit">{{ ct.remove }}</button>
+</form>
+{% endblock %}

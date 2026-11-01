@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}{{ t.teacher_cabinet }} · {{ t.site_title }}{% endblock %}
+{% block content %}
+<h1 class="h1">{{ t.teacher_cabinet }}</h1>
+<p class="lead-text">{{ ct.teacher_lead }}</p>
+
+<form method="post" class="panel newclass">{% csrf_token %}
+  <label class="label" for="class-name">{{ ct.new_class }}</label>
+  <div class="newclass__row">
+    <input id="class-name" name="name" maxlength="100" required placeholder="{{ ct.class_name_ph }}" class="field">
+    <button class="btn" type="submit">{{ ct.create }}</button>
+  </div>
+</form>
+
+<h2 class="h2 section-title">{{ ct.my_classes }}</h2>
+{% if rooms %}
+<div class="classes">
+  {% for r in rooms %}
+  <a class="class-card" href="{% url 'teacher_class' r.pk %}">
+    <span class="class-card__name">{{ r.name }}</span>
+    <span class="class-card__meta">{{ r.n }} {{ ct.students_n }}</span>
+    <span class="class-card__code">{{ ct.code }}: <b>{{ r.code }}</b></span>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<p class="muted">{{ ct.no_classes }}</p>
+{% endif %}
+{% if user.is_staff %}<p class="muted staff-link"><a href="{% url 'course_progress' %}">{{ t.group }}</a> · <a href="{% url 'admin:index' %}">{{ t.admin }}</a></p>{% endif %}
+{% endblock %}

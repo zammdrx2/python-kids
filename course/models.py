@@ -164,3 +164,67 @@ class Submission(models.Model):
 
     def __str__(self):
         return f"{self.user} — {self.task} — {'✓' if self.solved else '…'}"
+
+
+def _class_code():
+    import secrets
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # без похожих 0/O и 1/I
+    return "".join(secrets.choice(alphabet) for _ in range(6))
+
+
+class Classroom(models.Model):
+    """Класс учителя: ученики вступают по коду и попадают в кабинет учителя."""
+    teacher = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="classrooms",
+                                verbose_name="Учитель")
+    name = models.CharField("Название", max_length=100)
+    code = models.CharField("Код для вступления", max_length=8, unique=True, default=_class_code)
+    created_at = models.DateTimeField("Создан", auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Класс"
+        verbose_name_plural = "Классы"
+
+    def __str__(self):
+        return f"{self.name} ({self.teacher})"
+
+
+class Membership(models.Model):
+    classroom = models.ForeignKey(Classroom, on_delete=models.CASCADE, related_name="memberships", verbose_name="Класс")
+    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="memberships",
+                                verbose_name="Ученик")
+    joined_at = models.DateTimeField("Вступил", auto_now_add=True)
+
+    class Meta:
+        unique_together = ("classroom", "student")
+        ordering = ["joined_at"]
+        verbose_name = "Ученик класса"
+        verbose_name_plural = "Ученики классов"
+
+    def __str__(self):
+        return f"{self.student} → {self.classroom.name}"
+
+
+def _cert_code():
+    import secrets
+    return secrets.token_hex(4).upper()
+
+
+class Certificate(models.Model):
+    """Сертификат о прохождении курса. Имя сохраняется на момент выдачи."""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="certificates",
+                             verbose_name="Ученик")
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="certificates", verbose_name="Курс")
+    name = models.CharField("Имя на сертификате", max_length=200)
+    teacher_name = models.CharField("Учитель", max_length=200, blank=True)
+    code = models.CharField("Номер", max_length=12, unique=True, default=_cert_code)
+    issued_at = models.DateTimeField("Выдан", auto_now_add=True)
+
+    class Meta:
+        unique_together = ("user", "course")
+        ordering = ["-issued_at"]
+        verbose_name = "Сертификат"
+        verbose_name_plural = "Сертификаты"
+
+    def __str__(self):
+        return f"{self.name} — {self.course} ({self.code})"
