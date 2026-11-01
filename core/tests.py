@@ -28,3 +28,19 @@ class FaviconTests(TestCase):
         self.assertEqual(r.status_code, 301)
         self.assertTrue(r["Location"].endswith("img/favicon.ico"))
         self.assertContains(self.client.get(reverse("login")), "favicon.svg")
+
+
+class SeoTests(TestCase):
+    def test_meta_robots_sitemap(self):
+        from django.core.management import call_command
+        call_command("load_course", verbosity=0)
+        r = self.client.get(reverse("home"))
+        self.assertContains(r, 'property="og:image"')
+        self.assertContains(r, "img/og-image.png")
+        self.assertContains(r, 'name="description"')
+        self.assertContains(self.client.get(reverse("course_home", args=["python"])), 'property="og:title" content="Python')
+        r = self.client.get("/robots.txt")
+        self.assertContains(r, "Disallow: /admin/")
+        self.assertContains(r, "sitemap.xml")
+        r = self.client.get("/sitemap.xml")
+        self.assertContains(r, "/python/lesson/24/")

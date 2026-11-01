@@ -126,3 +126,6 @@ QUESTIONS_PER_MIXED_TEST = 20
 PYODIDE_URL = os.getenv("PYODIDE_URL", "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/")
 
 # Не обрывать длинные POST-запросы при завершении ЕНТ (120 заданий)
+
+# Хостинг (PythonAnywhere) принимает https и передаёт запрос дальше — так ссылки в превью будут https
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

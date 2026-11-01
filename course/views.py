@@ -126,7 +126,7 @@ def course_home(request, course):
     modules, flat = _course_map(request.user, course, lang)
     next_item = next((i for i in flat if i["state"] != "done" and not i["locked"]), None)
     return render(request, "course/home.html", {
-        "course": course, "course_title": course.title(lang),
+        "course": course, "course_title": course.title(lang), "course_desc": course.desc(lang),
         "modules": modules, "ct": course_texts(lang), "points": services.user_points(request.user),
         "next_item": next_item, "started": any(i["progress"]["solved"] for i in flat),
         "complete": bool(flat) and all(i["state"] == "done" for i in flat),
