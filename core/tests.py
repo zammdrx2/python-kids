@@ -20,3 +20,11 @@ class CoreTests(TestCase):
     def test_language_switch_rejects_external_redirect(self):
         r = self.client.post(reverse("set_language"), {"lang": "ru", "next": "https://evil.example"})
         self.assertEqual(r["Location"], "/")
+
+
+class FaviconTests(TestCase):
+    def test_favicon(self):
+        r = self.client.get("/favicon.ico")
+        self.assertEqual(r.status_code, 301)
+        self.assertTrue(r["Location"].endswith("img/favicon.ico"))
+        self.assertContains(self.client.get(reverse("login")), "favicon.svg")
