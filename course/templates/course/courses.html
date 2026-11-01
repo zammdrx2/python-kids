@@ -6,7 +6,7 @@
 <div class="courses">
   {% for c in courses %}
   <a class="course-card" href="{% url 'course_home' c.course.slug %}" style="background: {{ c.course.color }}">
-    <span class="course-card__icon" aria-hidden="true">{% if c.course.kind == 'web' %}&lt;/&gt;{% elif c.course.kind == 'js' %}JS{% elif c.course.kind == 'sql' %}SQL{% else %}Py{% endif %}</span>
+    <span class="course-card__icon" aria-hidden="true">{% if c.course.kind == 'web' %}&lt;/&gt;{% elif c.course.kind == 'js' %}JS{% elif c.course.kind == 'sql' %}SQL{% elif c.course.kind == 'word' %}W{% elif c.course.kind == 'excel' %}X{% elif c.course.kind == 'pptx' %}P{% else %}Py{% endif %}</span>
     <span class="course-card__title">{{ c.title }}</span>
     <span class="course-card__desc">{{ c.desc }}</span>
     <span class="course-card__meta">{{ c.lessons }} {{ c.lessons_word }}{% if user.is_authenticated %} · {{ c.done }} {{ ct.done_count }}{% endif %}</span>

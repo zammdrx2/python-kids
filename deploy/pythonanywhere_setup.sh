@@ -22,7 +22,7 @@ echo "Python: $PY"
 [ -d venv ] || "$PY" -m venv venv
 source venv/bin/activate
 pip install --quiet --upgrade pip
-pip install --quiet "Django>=5.0,<6.0" "whitenoise>=6.6"
+pip install --quiet "Django>=5.0,<6.0" "whitenoise>=6.6" "python-docx>=1.1" "openpyxl>=3.1" "python-pptx>=0.6.23"
 
 # 3. Настройки (.env создаётся один раз, секретный ключ генерируется автоматически)
 if [ ! -f .env ]; then

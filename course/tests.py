@@ -143,3 +143,68 @@ class MultiCourseTests(TestCase):
         # первый урок веб-курса открыт, второй — нет, несмотря на прогресс в Python
         self.assertEqual(self.client.get(reverse("course_lesson", args=["web", 1])).status_code, 200)
         self.assertEqual(self.client.get(reverse("course_lesson", args=["web", 2])).status_code, 302)
+
+
+class OfficeCourseTests(TestCase):
+    """Курсы Word, Excel, PowerPoint: тесты и файлы проверяет сервер."""
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command("load_course", verbosity=0)
+        cls.user = get_user_model().objects.create_user("kid5", password="pass12345")
+
+    def test_courses_loaded(self):
+        for slug in ("word", "excel", "powerpoint"):
+            self.assertEqual(Lesson.objects.filter(course__slug=slug).count(), 12)
+            for lesson in Lesson.objects.filter(course__slug=slug):
+                self.assertEqual(lesson.tasks.filter(kind=Task.Kind.QUIZ).count(), 4, lesson)
+                self.assertEqual(lesson.tasks.filter(kind=Task.Kind.FILE).count(), 2, lesson)
+
+    def quiz(self):
+        return Task.objects.filter(kind=Task.Kind.QUIZ, lesson__course__slug="word", lesson__number=1).first()
+
+    def test_quiz_answer_not_on_page_and_checked_on_server(self):
+        task = self.quiz()
+        right = task.tests[0]["answer"]
+        r = self.client.get(reverse("course_lesson", args=["word", 1]))
+        self.assertContains(r, task.tests[0]["options"][0][0])
+        self.assertNotContains(r, '"answer"')
+        url = reverse("course_submit", args=[task.id])
+        # гость может проверить ответ, но ничего не сохраняется
+        r = self.client.post(url, json.dumps({"choice": right}), content_type="application/json")
+        self.assertTrue(r.json()["correct"])
+        self.assertEqual(Submission.objects.count(), 0)
+        self.client.login(username="kid5", password="pass12345")
+        # подделать «passed» нельзя — важен только выбранный вариант
+        wrong = (right + 1) % len(task.tests[0]["options"])
+        r = self.client.post(url, json.dumps({"choice": wrong, "passed": 1}), content_type="application/json")
+        self.assertFalse(r.json()["correct"])
+        self.assertFalse(Submission.objects.get(user=self.user, task=task).solved)
+        r = self.client.post(url, json.dumps({"choice": right}), content_type="application/json")
+        self.assertTrue(Submission.objects.get(user=self.user, task=task).solved)
+        self.assertEqual(self.client.post(url, json.dumps({"choice": 99}), content_type="application/json").status_code, 400)
+
+    def test_file_upload_checked(self):
+        import sys
+        from pathlib import Path
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        sys.path.insert(0, str(Path(__file__).parent / "data" / "build"))
+        from office_make import make_blank, make_solution
+
+        self.client.login(username="kid5", password="pass12345")
+        for slug, kind, ext in (("word", "word", "docx"), ("excel", "excel", "xlsx"), ("powerpoint", "pptx", "pptx")):
+            task = Task.objects.filter(kind=Task.Kind.FILE, lesson__course__slug=slug, lesson__number=1).first()
+            url = reverse("course_submit", args=[task.id])
+            r = self.client.post(url, {"file": SimpleUploadedFile(f"a.{ext}", make_blank(kind))})
+            self.assertFalse(r.json()["solved"], slug)
+            self.assertTrue(any(not x["ok"] for x in r.json()["results"]))
+            r = self.client.post(url, {"file": SimpleUploadedFile(f"a.{ext}", make_solution(kind, task.tests))})
+            self.assertTrue(r.json()["solved"], (slug, r.json()))
+            self.assertTrue(Submission.objects.get(user=self.user, task=task).solved)
+            r = self.client.post(url, {"file": SimpleUploadedFile("a.txt", b"hello")})
+            self.assertEqual(r.status_code, 400)
+            r = self.client.post(url, {"file": SimpleUploadedFile(f"a.{ext}", b"not a zip")})
+            self.assertEqual(r.status_code, 400)
+        r = self.client.get(reverse("course_lesson", args=["excel", 1]))
+        self.assertContains(r, 'accept=".xlsx"')

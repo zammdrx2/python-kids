@@ -8,6 +8,8 @@
 - **JavaScript** — 24 урока, 102 задания; код выполняется в Web Worker, проверка сравнивает вывод `console.log`.
 - **SQL** — 24 урока, 99 заданий; настоящая база SQLite в браузере (sql.js), ответ сравнивается с правильной таблицей на двух наборах данных.
 
+- **Word, Excel, PowerPoint** — по 12 уроков, в каждом 4 теста и 2 практических задания. Ученик делает файл в настоящей программе (.docx, .xlsx, .pptx) и загружает его — сервер проверяет заголовки, списки, таблицы, формулы, диаграммы, слайды и переходы (`course/office_checks.py`).
+
 Уроки открываются по порядку: следующий доступен, когда решены все задания предыдущего.
 
 ![Django](https://img.shields.io/badge/Django-5-0C4B33) ![Pyodide](https://img.shields.io/badge/Pyodide-0.26-blue) ![tests](https://img.shields.io/badge/tests-passing-brightgreen)
@@ -53,6 +55,8 @@ python manage.py runserver
 Курс HTML и CSS лежит в `course/data/build/web_course.py`: `python course/data/build/web_course.py` пишет `course/data/web.json`, а `node course/data/build/check_web.js` проверяет в браузере, что эталоны проходят проверки, а начальный код — нет.
 
 Курсы JavaScript и SQL: `python course/data/build/js_course.py` и `python course/data/build/sql_course.py` (ожидаемые ответы вычисляются из эталонов), `node course/data/build/check_sql.js` сверяет ответы с движком сайта.
+
+Курсы Word, Excel, PowerPoint: `python course/data/build/word_course.py` (и `excel_course.py`, `pptx_course.py`). Сборка сама создаёт эталонный файл для каждого задания и проверяет, что он проходит проверки, а пустой файл — нет.
 
 Курс Python:
 

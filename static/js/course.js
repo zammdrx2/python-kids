@@ -287,8 +287,82 @@
     }
   }
 
+  // ---------- Тесты и файлы Word / Excel / PowerPoint: проверяет сервер ----------
+  async function postToServer(card, body, isForm) {
+    try {
+      const r = await fetch(card.dataset.submit, {
+        method: "POST",
+        headers: isForm ? { "X-CSRFToken": CSRF } : { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+        body: isForm ? body : JSON.stringify(body),
+      });
+      const data = await r.json().catch(() => ({ ok: false }));
+      if (r.status === 403) data.error = T.locked_task || data.error;
+      return data;
+    } catch (e) {
+      return { ok: false, error: T.save_error };
+    }
+  }
+
+  function setupQuiz(card, out) {
+    const btn = card.querySelector(".js-check");
+    btn.addEventListener("click", async () => {
+      const picked = card.querySelector("input[type=radio]:checked");
+      if (!picked) { out.replaceChildren(el("p", "out--error", T.quiz_pick)); return; }
+      btn.disabled = true;
+      const r = await postToServer(card, { choice: Number(picked.value) });
+      btn.disabled = false;
+      card.querySelectorAll(".quiz__opt").forEach((o) => o.classList.remove("is-right", "is-wrong"));
+      if (!r.ok) { out.replaceChildren(el("p", "out--error", r.error || T.save_error)); return; }
+      const label = picked.closest(".quiz__opt");
+      if (r.correct) {
+        label.classList.add("is-right");
+        out.replaceChildren(el("p", "out--ok", "🎉 " + T.quiz_right));
+        markSolved(card);
+      } else {
+        label.classList.add("is-wrong");
+        out.replaceChildren(el("p", "out--error", T.quiz_wrong));
+      }
+      if (!LOGGED_IN) out.appendChild(el("p", "muted", T.login_to_save));
+    });
+  }
+
+  function setupFile(card, out) {
+    const input = card.querySelector("input[type=file]");
+    const name = card.querySelector(".upload__name");
+    const btn = card.querySelector(".js-check");
+    input.addEventListener("change", () => {
+      name.textContent = input.files.length ? input.files[0].name : T.file_none;
+      card.querySelector(".upload").classList.toggle("has-file", input.files.length > 0);
+    });
+    btn.addEventListener("click", async () => {
+      if (!input.files.length) { out.replaceChildren(el("p", "out--error", T.file_pick)); return; }
+      const form = new FormData();
+      form.append("file", input.files[0]);
+      btn.disabled = true;
+      out.replaceChildren(el("p", "muted", T.file_checking));
+      const r = await postToServer(card, form, true);
+      btn.disabled = false;
+      if (!r.ok) { out.replaceChildren(el("p", "out--error", r.error || T.save_error)); return; }
+      const list = el("ol", "tests");
+      r.results.forEach((x) => {
+        const li = el("li", "test " + (x.ok ? "test--ok" : "test--fail"));
+        li.appendChild(el("span", "test__title", (x.ok ? "✓ " : "✗ ") + x.msg));
+        list.appendChild(li);
+      });
+      const summary = r.solved
+        ? el("p", "out--ok", "🎉 " + T.file_all_passed)
+        : el("p", "out--error", `${T.web_some_failed}: ${r.passed} / ${r.total}`);
+      out.replaceChildren(summary, list);
+      if (!LOGGED_IN) out.appendChild(el("p", "muted", T.login_to_save));
+      if (r.solved || r.solved_ever) markSolved(card);
+      out.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  }
+
   // ---------- Задания ----------
   document.querySelectorAll(".task").forEach((card) => {
+    if (card.dataset.kind === "quiz") return setupQuiz(card, card.querySelector(".task__out"));
+    if (card.dataset.kind === "file") return setupFile(card, card.querySelector(".task__out"));
     const editor = card.querySelector("textarea.editor");
     const inputBox = card.querySelector("textarea.stdin");
     const out = card.querySelector(".task__out");

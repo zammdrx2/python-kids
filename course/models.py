@@ -16,6 +16,9 @@ class Course(models.Model):
         WEB = "web", "HTML и CSS"
         JS = "js", "JavaScript"
         SQL = "sql", "SQL"
+        WORD = "word", "Word"
+        EXCEL = "excel", "Excel"
+        PPTX = "pptx", "PowerPoint"
 
     slug = models.SlugField("Адрес", unique=True)
     kind = models.CharField("Тип", max_length=10, choices=Kind.choices, default=Kind.PYTHON)
@@ -105,6 +108,8 @@ class Task(models.Model):
         WEB = "web", "HTML/CSS с проверкой страницы"
         JS = "js", "JavaScript с тестами"
         SQL = "sql", "SQL-запрос с проверкой результата"
+        QUIZ = "quiz", "Тест с вариантами ответа"
+        FILE = "file", "Файл Word/Excel/PowerPoint с проверкой"
 
     lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name="tasks")
     order = models.PositiveIntegerField("Порядок", default=1)

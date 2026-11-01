@@ -40,7 +40,31 @@
     <div class="task__text">{{ it.text|linebreaks }}</div>
     {% if it.hint %}<details class="hint"><summary>{{ ct.hint }}</summary><p>{{ it.hint|linebreaksbr }}</p></details>{% endif %}
 
-    {% if it.task.kind == 'web' %}
+    {% if it.task.kind == 'quiz' %}
+    <fieldset class="quiz">
+      <legend class="sr">{{ it.title }}</legend>
+      {% for o in it.options %}
+      <label class="quiz__opt{% if it.solved and o == it.picked %} is-right{% endif %}">
+        <input type="radio" name="q-{{ it.task.id }}" value="{{ forloop.counter0 }}"{% if it.solved and o == it.picked %} checked{% endif %}>
+        <span>{{ o }}</span>
+      </label>
+      {% endfor %}
+    </fieldset>
+    <div class="task__actions">
+      <button type="button" class="btn btn--big js-check">{{ ct.quiz_answer }}</button>
+    </div>
+    {% elif it.task.kind == 'file' %}
+    <div class="upload">
+      <label class="upload__box">
+        <input type="file" accept="{{ file_ext }}" class="upload__input">
+        <span class="upload__icon" aria-hidden="true">📎</span>
+        <span class="upload__text"><b>{{ ct.file_choose }} {{ file_ext }}</b><span class="upload__name">{{ ct.file_none }}</span></span>
+      </label>
+    </div>
+    <div class="task__actions">
+      <button type="button" class="btn btn--big js-check">{{ ct.file_check }}</button>
+    </div>
+    {% elif it.task.kind == 'web' %}
     <div class="webgrid">
       <div>
         <label class="label" for="code-{{ it.task.id }}">{{ ct.your_code }}</label>

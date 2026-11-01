@@ -3,14 +3,14 @@ import json
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.views import redirect_to_login
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from core.ui import get_lang
 
-from . import services
+from . import office_checks, services
 from .models import Course, Lesson, Module, Submission, Task
 from .ui import course_texts
 
@@ -46,6 +46,18 @@ MODULE_DESC = {
     ("sql", 6): ("текст, числа, рейтинг", "мәтін, сандар, рейтинг"),
     ("sql", 7): ("LEFT JOIN, подзапросы, продажи", "LEFT JOIN, ішкі сұраулар, сатылым"),
     ("sql", 8): ("CREATE, ALTER, отчёт магазина", "CREATE, ALTER, дүкен есебі"),
+    ("word", 1): ("текст, шрифт, абзацы", "мәтін, қаріп, абзацтар"),
+    ("word", 2): ("списки, заголовки, таблицы", "тізімдер, тақырыптар, кестелер"),
+    ("word", 3): ("картинки, страница, колонтитулы", "суреттер, бет, колонтитулдар"),
+    ("word", 4): ("оглавление, сноски, буклет", "мазмұн, сілтемелер, буклет"),
+    ("excel", 1): ("ячейки, оформление, форматы", "ұяшықтар, безендіру, пішімдер"),
+    ("excel", 2): ("формулы, СУММ, СРЗНАЧ, $", "формулалар, СУММ, СРЗНАЧ, $"),
+    ("excel", 3): ("ЕСЛИ, сортировка, фильтр", "ЕСЛИ, сұрыптау, сүзгі"),
+    ("excel", 4): ("диаграммы, листы, бюджет", "диаграммалар, парақтар, бюджет"),
+    ("powerpoint", 1): ("слайды, списки, дизайн", "слайдтар, тізімдер, дизайн"),
+    ("powerpoint", 2): ("картинки, SmartArt, диаграммы", "суреттер, SmartArt, диаграммалар"),
+    ("powerpoint", 3): ("переходы, анимация, ссылки", "ауысулар, анимация, сілтемелер"),
+    ("powerpoint", 4): ("заметки, правила, проект", "жазбалар, ережелер, жоба"),
 }
 
 
@@ -132,6 +144,16 @@ def module_detail(request, course, number):
                                                   "points": services.user_points(request.user)})
 
 
+def _quiz_options(task, lang):
+    if task.kind != Task.Kind.QUIZ or not task.tests:
+        return []
+    out = []
+    for o in task.tests[0].get("options", []):
+        ru, kk = (o[0], o[1] if len(o) > 1 and o[1] else o[0]) if isinstance(o, list) else (o, o)
+        out.append(kk if lang == "kk" else ru)
+    return out
+
+
 def lesson_detail(request, course, number):
     lang = get_lang(request)
     course = _course(course)
@@ -153,9 +175,13 @@ def lesson_detail(request, course, number):
             "task": t, "title": t.title(lang), "text": t.text(lang), "hint": t.hint(lang),
             "code": s.code if s and s.code else t.starter_code,
             "solved": bool(s and s.solved),
-            "example_input": t.tests[0].get("input", "") if t.tests and t.kind != Task.Kind.WEB else "",
+            "example_input": (t.tests[0].get("input", "") if t.tests and t.kind not in
+                              (Task.Kind.WEB, Task.Kind.QUIZ, Task.Kind.FILE) else ""),
             # JSON для страницы; "<" экранируем, чтобы код вроде "</script>" не ломал HTML
-            "data_json": json.dumps({"tests": t.tests, "starter": t.starter_code}, ensure_ascii=False).replace("<", "\\u003c"),
+            "data_json": json.dumps({"tests": [] if t.kind in (Task.Kind.QUIZ, Task.Kind.FILE) else t.tests,
+                                     "starter": t.starter_code}, ensure_ascii=False).replace("<", "\\u003c"),
+            "options": _quiz_options(t, lang),
+            "picked": s.code if s and t.kind == Task.Kind.QUIZ else "",
         })
     color, _ = module_style(course, lesson.module.number, lang)
     prev_lesson = Lesson.objects.filter(course=course, number__lt=number).order_by("-number").first()
@@ -169,6 +195,7 @@ def lesson_detail(request, course, number):
         "next_title": next_lesson.title(lang) if next_lesson else "",
         "lesson_done": bool(tasks) and all(t["solved"] for t in tasks),
         "is_teacher": request.user.is_staff,
+        "file_ext": office_checks.EXT.get(course.kind, ""),
     })
 
 
@@ -181,12 +208,62 @@ def legacy_module(request, number):
     return redirect("course_module", "python", number, permanent=True)
 
 
-@login_required
+def _check_quiz(request, task):
+    try:
+        choice = int(json.loads(request.body or "{}").get("choice"))
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return None, None, None
+    answer = task.tests[0].get("answer") if task.tests else None
+    options = task.tests[0].get("options", []) if task.tests else []
+    if not 0 <= choice < len(options):
+        return None, None, None
+    picked = options[choice][0] if isinstance(options[choice], list) else options[choice]
+    return int(choice == answer), 1, {"correct": choice == answer, "code": picked}
+
+
+def _check_office_file(request, task, lang):
+    f = request.FILES.get("file")
+    ext = office_checks.EXT.get(task.lesson.course.kind, "")
+    ct = course_texts(lang)
+    if f is None:
+        return None, None, {"error": ct["file_missing"]}
+    if f.size > office_checks.MAX_SIZE:
+        return None, None, {"error": ct["file_too_big"]}
+    if not f.name.lower().endswith(ext):
+        return None, None, {"error": f"{ct['file_wrong_ext']} {ext}"}
+    results, error = office_checks.check_file(task.lesson.course.kind, f.read(), task.tests, lang)
+    if error:
+        return None, None, {"error": error}
+    passed = sum(r["ok"] for r in results)
+    return passed, len(results), {"results": results, "code": f"[файл] {f.name}: {passed} из {len(results)}"}
+
+
 @require_POST
 def submit(request, task_id):
-    task = get_object_or_404(Task.objects.select_related("lesson"), pk=task_id)
+    task = get_object_or_404(Task.objects.select_related("lesson", "lesson__course"), pk=task_id)
+    server_checked = task.kind in (Task.Kind.QUIZ, Task.Kind.FILE)
+    if not request.user.is_authenticated and not server_checked:
+        return redirect_to_login(request.get_full_path())
     if not services.is_lesson_open(request.user, task.lesson):
         return JsonResponse({"ok": False, "error": "locked"}, status=403)
+
+    if server_checked:  # тесты и файлы проверяет сервер — клиенту не доверяем
+        lang = get_lang(request)
+        if task.kind == Task.Kind.QUIZ:
+            passed, total, extra = _check_quiz(request, task)
+        else:
+            passed, total, extra = _check_office_file(request, task, lang)
+        if passed is None:
+            if extra and "error" in extra:
+                return JsonResponse({"ok": False, "error": extra["error"]}, status=400)
+            return JsonResponse({"ok": False, "error": "bad request"}, status=400)
+        code = extra.pop("code", "")
+        out = {"ok": True, "passed": passed, "total": total, "solved": passed == total, **extra}
+        if request.user.is_authenticated:
+            sub = services.record_submission(request.user, task, code, passed, total)
+            out["solved_ever"] = sub.solved
+        return JsonResponse(out)
+
     try:
         data = json.loads(request.body or "{}")
         passed = int(data.get("passed", 0))
