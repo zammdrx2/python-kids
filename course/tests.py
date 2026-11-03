@@ -1,4 +1,5 @@
 import json
+import re
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
@@ -7,6 +8,7 @@ from django.urls import reverse
 
 from .data.build.build import normalize, run
 from .models import Lesson, Submission, Task
+from .office_checks import has
 from .services import record_submission
 
 
@@ -30,6 +32,25 @@ class CourseContentTests(TestCase):
             self.assertTrue(task.tests, task)
             for t in task.tests:
                 self.assertEqual(normalize(run(task.solution, t["input"])), normalize(t["output"]), task)
+
+    def test_case_and_shape_tasks_are_exact(self):
+        # Мягкая проверка не должна пропускать неверное решение там, где регистр или отступы и есть суть задания
+        case_methods = re.compile(r"\.(upper|capitalize|title|swapcase|toUpperCase)\(")
+        for task in Task.objects.filter(kind__in=[Task.Kind.TESTED, Task.Kind.JS]):
+            shaped = any(re.search(r"^[ \t]+\S", t["output"], re.M) for t in task.tests)
+            if shaped or case_methods.search(task.solution):
+                self.assertTrue(all(t.get("exact") for t in task.tests), task)
+
+    def test_no_long_dash_in_courses(self):
+        for lesson in Lesson.objects.all():
+            self.assertNotIn("—", lesson.title_ru + lesson.goal_ru + json.dumps(lesson.theory, ensure_ascii=False), lesson)
+        for task in Task.objects.all():
+            self.assertNotIn("—", task.title_ru + task.text_ru + task.hint_ru + task.title_kk + task.text_kk + task.hint_kk, task)
+
+    def test_office_text_ignores_case_and_spaces(self):
+        self.assertTrue(has("привет,мир", "Привет, Мир"))
+        self.assertTrue(has("Мой  ёжик", "мой ежик"))
+        self.assertFalse(has("Привет", "Пока"))
 
     def test_reload_keeps_submissions(self):
         user = get_user_model().objects.create_user("kid", password="x")
@@ -140,7 +161,7 @@ class MultiCourseTests(TestCase):
         self.client.login(username="kid3", password="pass12345")
         for t in Task.objects.filter(lesson__course__slug="python", lesson__number=1):
             record_submission(self.user, t, "x\nprint(1)", len(t.tests), len(t.tests))
-        # первый урок веб-курса открыт, второй — нет, несмотря на прогресс в Python
+        # первый урок веб-курса открыт, второй - нет, несмотря на прогресс в Python
         self.assertEqual(self.client.get(reverse("course_lesson", args=["web", 1])).status_code, 200)
         self.assertEqual(self.client.get(reverse("course_lesson", args=["web", 2])).status_code, 302)
 
@@ -175,7 +196,7 @@ class OfficeCourseTests(TestCase):
         self.assertTrue(r.json()["correct"])
         self.assertEqual(Submission.objects.count(), 0)
         self.client.login(username="kid5", password="pass12345")
-        # подделать «passed» нельзя — важен только выбранный вариант
+        # подделать «passed» нельзя - важен только выбранный вариант
         wrong = (right + 1) % len(task.tests[0]["options"])
         r = self.client.post(url, json.dumps({"choice": wrong, "passed": 1}), content_type="application/json")
         self.assertFalse(r.json()["correct"])
@@ -234,7 +255,7 @@ class TeacherAndCertificateTests(TestCase):
         # ученику кабинет недоступен
         self.assertRedirects(self.client.get(reverse("teacher_home")), reverse("home"))
         self.client.logout()
-        # второй ученик — через страницу вступления, неверный код не принимается
+        # второй ученик - через страницу вступления, неверный код не принимается
         self.signup("kid_b")
         self.assertContains(self.client.post(reverse("join_class"), {"code": "ZZZZZZ"}), "не найден")
         self.client.post(reverse("join_class"), {"code": room.code})

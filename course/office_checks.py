@@ -20,8 +20,13 @@ def norm(s) -> str:
     return re.sub(r"\s+", " ", s.replace("ё", "е").replace("Ё", "Е")).strip().casefold()
 
 
+def relaxed(s) -> str:
+    """Для текста, который набирает ученик: кроме регистра и ё/е, не важны и пробелы."""
+    return re.sub(r"\s+", "", norm(s))
+
+
 def has(text, needle) -> bool:
-    return norm(needle) in norm(text)
+    return relaxed(needle) in relaxed(text)
 
 
 def q(s):
@@ -145,7 +150,7 @@ def _line_spacing(p):
         return 1.0
     if isinstance(v, float):
         return v
-    return v.pt / 12.0  # точное значение в пунктах — пересчитываем примерно
+    return v.pt / 12.0  # точное значение в пунктах - пересчитываем примерно
 
 
 def check_word(doc, z, c, lang):
@@ -177,7 +182,7 @@ def check_word(doc, z, c, lang):
         ok = any(_alignment(p) == c["value"] for p in _paras_with(doc, text))
         ru, kk = names[c["value"]]
         what = q(text) if text else L(lang, "текста", "мәтін")
-        return ok, L(lang, f"Выравнивание {what} — {ru}", f"{what} {kk} тураланған")
+        return ok, L(lang, f"Выравнивание {what} - {ru}", f"{what} {kk} тураланған")
     if t == "align_all":
         ps = [p for p in doc.paragraphs if p.text.strip() and _heading_level(p) is None]
         ok = bool(ps) and sum(_alignment(p) == c["value"] for p in ps) >= 0.8 * len(ps)
@@ -192,7 +197,7 @@ def check_word(doc, z, c, lang):
             if sizes and min(sizes) >= c["min"] and max(sizes) <= c.get("max", 999):
                 ok = True
         what = q(text) if text else L(lang, "текста", "мәтін")
-        return ok, L(lang, f"Размер шрифта {what} — не меньше {c['min']} пт", f"{what} қаріп өлшемі — кемінде {c['min']} пт")
+        return ok, L(lang, f"Размер шрифта {what} - не меньше {c['min']} пт", f"{what} қаріп өлшемі - кемінде {c['min']} пт")
     if t == "font":
         want = norm(c["name"])
         ok = False
@@ -201,7 +206,7 @@ def check_word(doc, z, c, lang):
             if names and all(n == want for n in names):
                 ok = True
         what = q(text) if text else L(lang, "текста", "мәтін")
-        return ok, L(lang, f"Шрифт {what} — {c['name']}", f"{what} қарпі — {c['name']}")
+        return ok, L(lang, f"Шрифт {what} - {c['name']}", f"{what} қарпі - {c['name']}")
     if t == "color":
         def colored(run):
             col = run.font.color
@@ -241,7 +246,7 @@ def check_word(doc, z, c, lang):
     if t == "landscape":
         s = doc.sections[0]
         ok = s.page_width is not None and s.page_height is not None and s.page_width > s.page_height
-        return ok, L(lang, "Ориентация страницы — альбомная", "Бет бағдары — альбомдық")
+        return ok, L(lang, "Ориентация страницы - альбомная", "Бет бағдары - альбомдық")
     if t in ("header", "footer"):
         part = [s.header if t == "header" else s.footer for s in doc.sections]
         body = "\n".join(p.text for h in part for p in h.paragraphs)
@@ -254,7 +259,7 @@ def check_word(doc, z, c, lang):
     if t == "line_spacing":
         ps = [p for p in doc.paragraphs if p.text.strip() and _heading_level(p) is None]
         ok = bool(ps) and sum(_line_spacing(p) >= c["min"] - 0.01 for p in ps) >= 0.8 * len(ps)
-        return ok, L(lang, f"Междустрочный интервал — не меньше {c['min']}", f"Жол аралығы — кемінде {c['min']}")
+        return ok, L(lang, f"Междустрочный интервал - не меньше {c['min']}", f"Жол аралығы - кемінде {c['min']}")
     if t == "indent":
         ok = any((p.paragraph_format.first_line_indent or 0) > 0 or
                  any((st.paragraph_format.first_line_indent or 0) > 0 for st in _style_chain(p.style))
@@ -298,7 +303,7 @@ def _same(a, b) -> bool:
     na, nb = _num(a), _num(b)
     if na is not None and nb is not None:
         return abs(na - nb) <= max(0.01, abs(nb) * 1e-6)
-    return norm(a) == norm(b)
+    return relaxed(a) == relaxed(b)
 
 
 RU_FUNCS = {"SUM": "СУММ", "AVERAGE": "СРЗНАЧ", "MIN": "МИН", "MAX": "МАКС", "IF": "ЕСЛИ", "COUNT": "СЧЁТ",
@@ -324,8 +329,8 @@ def check_excel(wb, wbv, z, c, lang):
         if isinstance(v, str) and v.startswith("="):
             v = wsv[ref].value
             if v is None:  # файл без сохранённых значений формул
-                return True, L(lang, f"В ячейке {ref} — {c['value']}", f"{ref} ұяшығында — {c['value']}")
-        return _same(v, c["value"]), L(lang, f"В ячейке {ref} — {c['value']}", f"{ref} ұяшығында — {c['value']}")
+                return True, L(lang, f"В ячейке {ref} - {c['value']}", f"{ref} ұяшығында - {c['value']}")
+        return _same(v, c["value"]), L(lang, f"В ячейке {ref} - {c['value']}", f"{ref} ұяшығында - {c['value']}")
     if t == "formula":
         v = ws[ref].value
         ok = isinstance(v, str) and v.startswith("=")
@@ -381,11 +386,11 @@ def check_excel(wb, wbv, z, c, lang):
         names = {"%": ("процентный", "пайыздық"), "0.00": ("с двумя знаками после запятой", "үтірден кейін екі таңбалы"),
                  "₸": ("денежный (₸)", "ақшалай (₸)")}
         ru, kk = names.get(c["contains"], (c["contains"], c["contains"]))
-        return ok, L(lang, f"Формат ячеек {ref} — {ru}", f"{ref} ұяшықтарының пішімі — {kk}")
+        return ok, L(lang, f"Формат ячеек {ref} - {ru}", f"{ref} ұяшықтарының пішімі - {kk}")
     if t == "date":
         import datetime as _dt
         ok = all(isinstance(x.value, (_dt.date, _dt.datetime)) for x in _cells(ws, ref))
-        return ok, L(lang, f"В ячейках {ref} — даты (формат «Дата»)", f"{ref} ұяшықтарында — күндер («Дата» пішімі)")
+        return ok, L(lang, f"В ячейках {ref} - даты (формат «Дата»)", f"{ref} ұяшықтарында - күндер («Дата» пішімі)")
     if t == "border":
         def bordered(x):
             b = x.border
@@ -403,7 +408,7 @@ def check_excel(wb, wbv, z, c, lang):
         n = len(wb.sheetnames)
         return n >= c["min"], L(lang, f"Листов в книге: не меньше {c['min']} (сейчас {n})", f"Кітаптағы парақтар: кемінде {c['min']} (қазір {n})")
     if t == "sheet_name":
-        ok = any(norm(s) == norm(c["value"]) for s in wb.sheetnames)
+        ok = any(relaxed(s) == relaxed(c["value"]) for s in wb.sheetnames)
         return ok, L(lang, f"Есть лист с названием {q(c['value'])}", f"{q(c['value'])} атты парақ бар")
     if t == "chart":
         charts = [n for n in z.namelist() if re.match(r"xl/charts/chart\d+\.xml$", n)]
@@ -545,7 +550,7 @@ def check_pptx(prs, z, c, lang):
 # ---------------------------------------------------------------- общий вход
 
 def check_file(course_kind: str, data: bytes, checks: list, lang: str = "ru"):
-    """Возвращает (results, error). results — список {"ok", "msg"}; error — текст, если файл не открылся."""
+    """Возвращает (results, error). results - список {"ok", "msg"}; error - текст, если файл не открылся."""
     bad = L(lang, f"Не получилось открыть файл. Сохрани его в формате {EXT[course_kind]} и загрузи ещё раз.",
             f"Файлды ашу мүмкін болмады. Оны {EXT[course_kind]} пішімінде сақтап, қайта жүкте.")
     try:
@@ -563,7 +568,7 @@ def check_file(course_kind: str, data: bytes, checks: list, lang: str = "ru"):
             import pptx
             obj = pptx.Presentation(io.BytesIO(data))
             fn = lambda c: check_pptx(obj, z, c, lang)  # noqa: E731
-    except Exception:  # noqa: BLE001 — любой битый файл
+    except Exception:  # noqa: BLE001 - любой битый файл
         return [], bad
     results = []
     for c in checks:
@@ -571,7 +576,7 @@ def check_file(course_kind: str, data: bytes, checks: list, lang: str = "ru"):
             ok, msg = fn(c)
         except ValueError:
             raise
-        except Exception:  # noqa: BLE001 — неожиданная структура файла не должна ронять сайт
+        except Exception:  # noqa: BLE001 - неожиданная структура файла не должна ронять сайт
             ok, msg = False, L(lang, "Не удалось проверить один из пунктов", "Бір тармақты тексеру мүмкін болмады")
         if c.get("msg"):
             msg = c["msg"][1] if lang == "kk" and isinstance(c["msg"], list) else (c["msg"][0] if isinstance(c["msg"], list) else c["msg"])

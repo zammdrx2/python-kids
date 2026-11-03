@@ -17,7 +17,7 @@
 {% block content %}
 <div id="lesson" class="lesson{% if course.kind == 'web' %} lesson--web{% endif %}" data-course-kind="{{ course.kind }}" data-lang="{{ lang }}" data-pyodide="{{ pyodide_url }}" data-worker="{% static 'js/pyworker.js' %}" data-jsworker="{% static 'js/jsworker.js' %}" data-sqljs="{% static 'vendor/sqljs/' %}"
      data-csrf="{{ csrf_token }}" data-auth="{% if user.is_authenticated %}1{% else %}0{% endif %}">
-  {% if not user.is_authenticated %}<div class="flash">{{ ct.login_to_save }} — <a href="{% url 'login' %}?next={{ request.path }}">{{ t.login }}</a></div>{% endif %}
+  {% if not user.is_authenticated %}<div class="flash">{{ ct.login_to_save }} - <a href="{% url 'login' %}?next={{ request.path }}">{{ t.login }}</a></div>{% endif %}
 
   {% if theory %}
   <section class="panel step-panel" id="step-0" aria-labelledby="theory-h">

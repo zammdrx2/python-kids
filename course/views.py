@@ -249,7 +249,7 @@ def submit(request, task_id):
     if not services.is_lesson_open(request.user, task.lesson):
         return JsonResponse({"ok": False, "error": "locked"}, status=403)
 
-    if server_checked:  # тесты и файлы проверяет сервер — клиенту не доверяем
+    if server_checked:  # тесты и файлы проверяет сервер - клиенту не доверяем
         lang = get_lang(request)
         if task.kind == Task.Kind.QUIZ:
             passed, total, extra = _check_quiz(request, task)

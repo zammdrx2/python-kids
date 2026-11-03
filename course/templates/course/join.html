@@ -11,7 +11,7 @@
   </form>
   {% if mine %}
   <h2 class="h2 section-title">{{ ct.you_are_in }}</h2>
-  <ul class="mine">{% for m in mine %}<li><b>{{ m.classroom.name }}</b> — {{ ct.teacher }}: {{ m.classroom.teacher.get_full_name|default:m.classroom.teacher.username }}</li>{% endfor %}</ul>
+  <ul class="mine">{% for m in mine %}<li><b>{{ m.classroom.name }}</b> - {{ ct.teacher }}: {{ m.classroom.teacher.get_full_name|default:m.classroom.teacher.username }}</li>{% endfor %}</ul>
   {% endif %}
 </div>
 {% endblock %}

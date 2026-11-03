@@ -32,7 +32,7 @@
         {% for c in r.cells %}<td class="cell cell--{{ c.state }}" title="{{ c.n }} / {{ c.total }}">{% if c.state == 'done' %}✓{% elif c.state == 'part' %}{{ c.n }}{% endif %}</td>{% endfor %}
         <td><strong>{{ r.done }}</strong></td><td><strong>{{ r.points }}</strong></td>
         <td>{% if r.cert %}🏅{% endif %}</td>
-        <td class="nowrap muted">{% if r.last %}{{ r.last|date:"d.m H:i" }}{% else %}—{% endif %}</td>
+        <td class="nowrap muted">{% if r.last %}{{ r.last|date:"d.m H:i" }}{% else %}-{% endif %}</td>
       </tr>
       {% endfor %}
     </tbody>

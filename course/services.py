@@ -55,7 +55,7 @@ def lesson_progress(user) -> dict[int, dict]:
 
 def lesson_access(user, progress=None) -> dict[int, bool]:
     """{id урока: открыт ли}. Урок открывается, когда решены все задания предыдущего.
-    Преподавателю (is_staff) открыто всё; гостю — только первый урок."""
+    Преподавателю (is_staff) открыто всё; гостю - только первый урок."""
     if progress is None:
         progress = lesson_progress(user)
     access, prev_done, course_id = {}, True, None
@@ -82,7 +82,7 @@ TEACHERS_GROUP = "Учителя"
 
 
 def is_teacher(user) -> bool:
-    """Учитель — тот, кто отметил это при регистрации (группа «Учителя»), или администратор."""
+    """Учитель - тот, кто отметил это при регистрации (группа «Учителя»), или администратор."""
     if not user.is_authenticated:
         return False
     return user.is_staff or user.groups.filter(name=TEACHERS_GROUP).exists()
@@ -121,8 +121,8 @@ def issue_certificate(user, course):
 
 
 def group_progress(course, students=None):
-    """Таблица ученики × уроки одного курса. students — список учеников (для класса учителя);
-    по умолчанию — все ученики, которые решали задания курса."""
+    """Таблица ученики × уроки одного курса. students - список учеников (для класса учителя);
+    по умолчанию - все ученики, которые решали задания курса."""
     lessons = list(Lesson.objects.filter(course=course).annotate(n=Count("tasks")).order_by("number"))
     User = get_user_model()
     in_course = Submission.objects.filter(task__lesson__course=course)

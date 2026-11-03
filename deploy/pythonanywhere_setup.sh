@@ -71,7 +71,7 @@ echo "  Static files:    URL /static/   Directory $PROJECT_DIR/staticfiles"
 if [ -z "$WSGI_DONE" ]; then
   echo ""
   echo "Веб-приложение ещё не создано. Создайте его на вкладке Web (Manual configuration, Python $PYV),"
-  echo "затем запустите этот скрипт ещё раз — он сам настроит WSGI-файл."
+  echo "затем запустите этот скрипт ещё раз - он сам настроит WSGI-файл."
 fi
 echo ""
 echo "Аккаунт преподавателя:  source venv/bin/activate && python manage.py createsuperuser"

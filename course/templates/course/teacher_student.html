@@ -3,7 +3,7 @@
 {% block content %}
 <a class="back" href="{% url 'teacher_class' room.pk %}">← {{ room.name }}</a>
 <h1 class="h1">{{ student.get_full_name|default:student.username }}</h1>
-<p class="lead-text">@{{ student.username }} · {{ ct.last_active }}: {% if student.last_login %}{{ student.last_login|date:"d.m.Y H:i" }}{% else %}—{% endif %}</p>
+<p class="lead-text">@{{ student.username }} · {{ ct.last_active }}: {% if student.last_login %}{{ student.last_login|date:"d.m.Y H:i" }}{% else %}-{% endif %}</p>
 
 <h2 class="h2 section-title">{{ ct.student_courses }}</h2>
 {% if summary %}

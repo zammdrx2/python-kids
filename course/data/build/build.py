@@ -74,7 +74,7 @@ def main():
               "desc": ["24 урока: от первой программы до своей игры", "24 сабақ: алғашқы бағдарламадан өз ойыныңа дейін"],
               "color": "#FFD166", "order": 1}
     out.write_text(json.dumps({"course": course, "modules": modules}, ensure_ascii=False, indent=1), encoding="utf-8")
-    print(f"OK: уроков {n_lessons}, тестов {n_tests} — все эталоны проходят. Записано {out}")
+    print(f"OK: уроков {n_lessons}, тестов {n_tests} - все эталоны проходят. Записано {out}")
 
 
 if __name__ == "__main__":

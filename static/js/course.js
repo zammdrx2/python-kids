@@ -174,8 +174,8 @@
   const cell = (v) => (v === null ? "NULL" : String(v));
   function sameRows(got, exp, ordered) {
     if (!got || got.rows.length !== exp.rows.length) return false;
-    const a = got.rows.map((r) => r.map(cell).join("\u0001"));
-    const b = exp.rows.map((r) => r.map(cell).join("\u0001"));
+    const a = got.rows.map((r) => r.map((v) => relaxed(cell(v))).join("\u0001"));
+    const b = exp.rows.map((r) => r.map((v) => relaxed(cell(v))).join("\u0001"));
     if ((got.rows[0] || []).length !== (exp.rows[0] || []).length) return false;
     if (!ordered) { a.sort(); b.sort(); }
     return a.every((x, i) => x === b[i]);
@@ -209,7 +209,7 @@
       EOFError: "Программа вызвала input() больше раз, чем есть входных данных.",
       KeyError: "В словаре нет такого ключа.",
       ReferenceError: "Такой переменной или функции нет. Проверьте опечатки и объявлена ли переменная через let.",
-      RangeError: "Значение вне допустимых границ — например, бесконечная рекурсия или неверная длина массива.",
+      RangeError: "Значение вне допустимых границ - например, бесконечная рекурсия или неверная длина массива.",
       "JS:SyntaxError": "Ошибка в записи программы: проверьте круглые и фигурные скобки, кавычки и точки с запятой.",
       "JS:TypeError": "Действие с неподходящим значением: например, вызвали как функцию то, что функцией не является.",
       SQLError: "Ошибка в запросе: проверьте названия таблиц и столбцов, запятые и кавычки у текста.",
@@ -225,7 +225,7 @@
       EOFError: "Бағдарлама input()-ты кіріс деректерден көп рет шақырды.",
       KeyError: "Сөздікте мұндай кілт жоқ.",
       ReferenceError: "Мұндай айнымалы немесе функция жоқ. Қате жазылмағанын және айнымалы let арқылы жарияланғанын тексеріңіз.",
-      RangeError: "Мән рұқсат етілген шектен тыс — мысалы, шексіз рекурсия немесе массивтің қате ұзындығы.",
+      RangeError: "Мән рұқсат етілген шектен тыс - мысалы, шексіз рекурсия немесе массивтің қате ұзындығы.",
       "JS:SyntaxError": "Бағдарлама жазылуында қате бар: жай және фигуралы жақшаларды, тырнақшаларды және нүктелі үтірлерді тексеріңіз.",
       "JS:TypeError": "Сәйкес келмейтін мәнмен әрекет: мысалы, функция емес нәрсені функция ретінде шақырдыңыз.",
       SQLError: "Сұрауда қате бар: кестелер мен бағандардың атауларын, үтірлерді және мәтін тырнақшаларын тексеріңіз.",
@@ -234,6 +234,11 @@
 
   // ---------- Вспомогательные функции ----------
   const normalize = (s) => s.replace(/\r/g, "").split("\n").map((l) => l.replace(/\s+$/, "")).join("\n").replace(/\n+$/, "");
+  // Мягкое сравнение: не важны регистр, ё/е и пробелы (кроме пробела между числами: 1 2 это не 12)
+  const relaxed = (s) => normalize(s).toLowerCase().replace(/ё/g, "е").split("\n")
+    .map((l) => l.replace(/(\d)[ \t]+(?=\d)/g, "$1\u0001").replace(/\s+/g, "").replace(/\u0001/g, " ")).join("\n");
+  // Задания с exact: регистр или пробелы и есть суть задания (большие буквы, ёлочка)
+  const sameOutput = (got, t) => (t.exact ? normalize(got) === normalize(t.output) : relaxed(got) === relaxed(t.output));
   const splitInput = (s) => (s === "" ? [] : s.replace(/\r/g, "").replace(/\n$/, "").split("\n"));
 
   function el(tag, cls, text) {
@@ -277,7 +282,7 @@
     if (pill) pill.classList.add("is-done");
     const badge = card.querySelector(".task__badge");
     if (badge) badge.hidden = false;
-    // все задания решены — открываем переход к следующему уроку
+    // все задания решены - открываем переход к следующему уроку
     const all = Array.from(document.querySelectorAll(".task"));
     const nextLink = document.querySelector(".js-next-lesson");
     if (nextLink && nextLink.hidden && all.every((c) => c.classList.contains("is-solved"))) {
@@ -378,7 +383,7 @@
     lintBox.setAttribute("role", "status");
     (card.querySelector(".stdin-box") || out).before(lintBox);
 
-    // Редактор с подсветкой (CodeMirror); если библиотека не загрузилась — обычное поле
+    // Редактор с подсветкой (CodeMirror); если библиотека не загрузилась - обычное поле
     let cm = null;
     if (window.CodeMirror) {
       cm = window.CodeMirror.fromTextArea(textarea, {
@@ -574,7 +579,7 @@
         const t = tests[i];
         const res = await runner(code, splitInput(t.input), false);
         const li = el("li", "test");
-        const ok = res.ok && !res.error && normalize(res.stdout) === normalize(t.output);
+        const ok = res.ok && !res.error && sameOutput(res.stdout, t);
         passed += ok;
         li.classList.add(ok ? "test--ok" : "test--fail");
         li.appendChild(el("span", "test__title", `${T.test} ${i + 1}: ${ok ? "✓ " + T.passed : "✗ " + T.failed}`));

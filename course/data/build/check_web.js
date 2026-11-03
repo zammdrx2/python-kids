@@ -1,5 +1,5 @@
 // Проверка курса HTML/CSS в настоящем браузере:
-// эталон каждого задания проходит все проверки, а начальный код — нет.
+// эталон каждого задания проходит все проверки, а начальный код - нет.
 //   node course/data/build/check_web.js
 const fs = require("fs");
 const path = require("path");
@@ -31,6 +31,6 @@ const checksJs = fs.readFileSync(path.join(root, "static/js/webchecks.js"), "utf
     }
   }
   await browser.close();
-  console.log(errors ? `Ошибок: ${errors}` : `OK: заданий ${total}, все эталоны проходят, начальный код — нет`);
+  console.log(errors ? `Ошибок: ${errors}` : `OK: заданий ${total}, все эталоны проходят, начальный код - нет`);
   process.exit(errors ? 1 : 0);
 })();

@@ -1,8 +1,8 @@
 """
 Курсы программирования для детей: курс → модули → уроки → задания, решения учеников.
 
-Код учеников выполняется в браузере (Python — через Pyodide, HTML/CSS — в окне
-предпросмотра), сервер хранит задания, проверки и результаты. Тексты — ru / kk.
+Код учеников выполняется в браузере (Python - через Pyodide, HTML/CSS - в окне
+предпросмотра), сервер хранит задания, проверки и результаты. Тексты - ru / kk.
 """
 from django.conf import settings
 from django.db import models
@@ -71,7 +71,7 @@ class Lesson(models.Model):
     title_kk = models.CharField("Тақырып (қаз)", max_length=200, blank=True)
     goal_ru = models.CharField("Цель (рус)", max_length=300, blank=True)
     goal_kk = models.CharField("Мақсат (қаз)", max_length=300, blank=True)
-    # Теория — список блоков: {"p": [ru, kk]} абзац или {"code": "..."} пример кода
+    # Теория - список блоков: {"p": [ru, kk]} абзац или {"code": "..."} пример кода
     theory = models.JSONField("Теория", default=list, blank=True)
     is_project = models.BooleanField("Урок-проект", default=False)
 
@@ -163,7 +163,7 @@ class Submission(models.Model):
         verbose_name_plural = "Решения"
 
     def __str__(self):
-        return f"{self.user} — {self.task} — {'✓' if self.solved else '…'}"
+        return f"{self.user} - {self.task} - {'✓' if self.solved else '…'}"
 
 
 def _class_code():
@@ -227,4 +227,4 @@ class Certificate(models.Model):
         verbose_name_plural = "Сертификаты"
 
     def __str__(self):
-        return f"{self.name} — {self.course} ({self.code})"
+        return f"{self.name} - {self.course} ({self.code})"

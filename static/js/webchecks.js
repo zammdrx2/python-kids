@@ -1,19 +1,21 @@
 /*
  * Проверки страницы для заданий HTML/CSS.
- * Каждая проверка — объект из tests задания:
- *   {"check": "exists", "sel": "h1"}                         — есть элемент
- *   {"check": "count",  "sel": "li", "min": 3, "max": 5}      — сколько элементов
- *   {"check": "text",   "sel": "h1", "text": "Привет"}         — элемент содержит текст
- *   {"check": "attr",   "sel": "a", "attr": "href", "value": "kaspi"} — атрибут (и часть значения)
- *   {"check": "css",    "sel": "h1", "prop": "color", "value": "red"} — вычисленный стиль равен значению
- *   {"check": "cssnot", "sel": "div", "prop": "border-top-style", "value": "none"} — стиль задан не по умолчанию
- *   {"check": "rule", "has": ":hover", "prop": "background-color"} — в стилях есть правило (например, для наведения)
- *   {"check": "media", "text": "max-width", "prop": "flex-direction"} — есть правило @media (и свойство внутри)
- *   {"check": "keyframes"}                                    — есть анимация @keyframes
+ * Каждая проверка - объект из tests задания:
+ *   {"check": "exists", "sel": "h1"}                         - есть элемент
+ *   {"check": "count",  "sel": "li", "min": 3, "max": 5}      - сколько элементов
+ *   {"check": "text",   "sel": "h1", "text": "Привет"}         - элемент содержит текст
+ *   {"check": "attr",   "sel": "a", "attr": "href", "value": "kaspi"} - атрибут (и часть значения)
+ *   {"check": "css",    "sel": "h1", "prop": "color", "value": "red"} - вычисленный стиль равен значению
+ *   {"check": "cssnot", "sel": "div", "prop": "border-top-style", "value": "none"} - стиль задан не по умолчанию
+ *   {"check": "rule", "has": ":hover", "prop": "background-color"} - в стилях есть правило (например, для наведения)
+ *   {"check": "media", "text": "max-width", "prop": "flex-direction"} - есть правило @media (и свойство внутри)
+ *   {"check": "keyframes"}                                    - есть анимация @keyframes
  * Используется и на сайте (окно предпросмотра), и при проверке эталонов.
  */
 (function (root) {
   const norm = (s) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
+  // Для текста, который набирает ученик: не важны регистр, ё/е и пробелы
+  const relaxed = (s) => norm(s).replace(/ё/g, "е").replace(/\s+/g, "");
 
   function expectedCss(doc, win, prop, value) {
     const probe = doc.createElement("div");
@@ -74,10 +76,10 @@
     switch (c.check) {
       case "exists": return els.length > 0;
       case "count": return els.length >= (c.min || 0) && (c.max === undefined || els.length <= c.max);
-      case "text": return els.some((e) => norm(e.textContent).includes(norm(c.text)));
+      case "text": return els.some((e) => relaxed(e.textContent).includes(relaxed(c.text)));
       case "attr": return els.some((e) => {
         const v = e.getAttribute(c.attr);
-        return v !== null && v.trim() !== "" && (c.value === undefined || norm(v).includes(norm(c.value)));
+        return v !== null && v.trim() !== "" && (c.value === undefined || relaxed(v).includes(relaxed(c.value)));
       });
       case "css": return els.some((e) => cssMatches(doc, win, e, c.prop, c.value));
       case "cssnot": return els.some((e) => !cssMatches(doc, win, e, c.prop, c.value));

@@ -3,7 +3,7 @@
 
 Урок = теория + 4 теста (Q) + 2 практических задания с файлом (F).
 build() проверяет, что у теста есть верный ответ, а для каждого задания с файлом
-эталонный файл проходит все проверки, а пустой — нет; затем пишет JSON курса.
+эталонный файл проходит все проверки, а пустой - нет; затем пишет JSON курса.
 """
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ def Q(ru, kk, options, answer):
 
 
 def F(title, text, checks, hint=("", "")):
-    """Практика: ученик делает файл и загружает его. title/text/hint — пары (ru, kk)."""
+    """Практика: ученик делает файл и загружает его. title/text/hint - пары (ru, kk)."""
     return {"kind": "file", "title": list(title), "text": list(text), "hint": list(hint), "tests": checks,
             "points": 15}
 

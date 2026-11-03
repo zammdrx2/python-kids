@@ -3,7 +3,7 @@
 Без пути загружаются все курсы из course/data/*.json.
 
 Формат файла: {"course": {"slug": "python", "kind": "python", "title": [...], "desc": [...],
-"color": "#FFD166", "order": 1}, "modules": [...]}. Старый формат — просто список модулей
+"color": "#FFD166", "order": 1}, "modules": [...]}. Старый формат - просто список модулей
 (тогда это курс Python). Модули:
 [
   {"number": 1, "title": ["рус", "қаз"], "lessons": [
