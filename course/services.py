@@ -61,8 +61,35 @@ def has_paid_access(user, today=None) -> bool:
     if user.is_staff:
         return True
     today = today or timezone.localdate()
+    from django.db.models import Q
+    from .models import Membership, Subscription
+    if Subscription.objects.filter(Q(free=True) | Q(paid_until__gte=today), user=user).exists():
+        return True
+    # ученики «бесплатного» класса (например, школьники учителя) не платят
+    return Membership.objects.filter(student=user, classroom__free_access=True).exists()
+
+
+def access_info(user):
+    """Как открыт доступ: ("free", None), ("class", название класса), ("paid", дата) или (None, дата/None)."""
+    from .models import Membership, Subscription
+    if not getattr(user, "is_authenticated", False):
+        return None, None
+    s = Subscription.objects.filter(user=user).first()
+    if s and s.free:
+        return "free", None
+    m = Membership.objects.filter(student=user, classroom__free_access=True).select_related("classroom").first()
+    if m:
+        return "class", m.classroom.name
+    until = s.paid_until if s else None
+    return ("paid" if until and until >= timezone.localdate() else None), until
+
+
+def set_free(user, free: bool):
     from .models import Subscription
-    return Subscription.objects.filter(user=user, paid_until__gte=today).exists()
+    sub, _ = Subscription.objects.get_or_create(user=user)
+    sub.free = free
+    sub.save()
+    return sub
 
 
 def paid_until(user):

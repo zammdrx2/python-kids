@@ -208,6 +208,8 @@ class Classroom(models.Model):
                                 verbose_name="Учитель")
     name = models.CharField("Название", max_length=100)
     code = models.CharField("Код для вступления", max_length=8, unique=True, default=_class_code)
+    # ученики такого класса получают доступ ко всем урокам без оплаты (включает только администратор)
+    free_access = models.BooleanField("Бесплатный доступ для учеников", default=False)
     created_at = models.DateTimeField("Создан", auto_now_add=True)
 
     class Meta:
@@ -265,6 +267,7 @@ class Subscription(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="subscription",
                                 verbose_name="Ученик")
     paid_until = models.DateField("Оплачено до", null=True, blank=True)
+    free = models.BooleanField("Бесплатный доступ", default=False)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

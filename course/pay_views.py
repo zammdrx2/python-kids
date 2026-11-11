@@ -9,7 +9,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import get_user_model
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -17,16 +17,17 @@ from django.views.decorators.http import require_POST
 from core.ui import get_lang
 
 from . import services
-from .models import Payment, Subscription
+from .models import Classroom, Membership, Payment, Subscription
 from .ui import course_texts
 
 
 def pay(request):
     lang = get_lang(request)
     ct = course_texts(lang)
-    until = services.paid_until(request.user)
+    kind, info = services.access_info(request.user)
+    until = info if kind in ("paid", None) else None
     today = timezone.localdate()
-    active = bool(until and until >= today)
+    active = kind == "paid"
     wa_text = ""
     if request.user.is_authenticated:
         name = request.user.get_full_name() or request.user.username
@@ -38,7 +39,8 @@ def pay(request):
         "price_fmt": f"{settings.PRICE_MONTH:,}".replace(",", " "),
         "pay_lead": ct["pay_lead"].format(free=settings.FREE_LESSONS),
         "pay_step2": ct["pay_step2"].format(price=f"{settings.PRICE_MONTH:,}".replace(",", " ")),
-        "until": until, "active": active, "days_left": (until - today).days if active else 0,
+        "until": until, "active": active, "free_kind": kind if kind in ("free", "class") else "",
+        "free_class": info if kind == "class" else "", "days_left": (until - today).days if active else 0,
     })
 
 
@@ -58,12 +60,17 @@ def payments(request):
         users = users.filter(subscription__paid_until__gte=today)
     elif show == "expired":
         users = users.filter(subscription__paid_until__lt=today)
+    elif show == "free":
+        users = users.filter(Q(subscription__free=True) | Q(memberships__classroom__free_access=True)).distinct()
     users = users.order_by("-last_login", "-date_joined")[:100]
+    in_free_class = set(Membership.objects.filter(classroom__free_access=True).values_list("student_id", flat=True))
     rows = []
     for u in users:
-        until = getattr(getattr(u, "subscription", None), "paid_until", None)
+        s = getattr(u, "subscription", None)
+        until = getattr(s, "paid_until", None)
         state = "none" if not until else ("active" if until >= today else "expired")
-        rows.append({"user": u, "until": until, "state": state,
+        free = bool(s and s.free)
+        rows.append({"user": u, "until": until, "state": state, "free": free, "free_class": u.id in in_free_class,
                      "soon": state == "active" and (until - today).days <= 3})
     stats = {
         "active": Subscription.objects.filter(paid_until__gte=today).count(),
@@ -73,6 +80,7 @@ def payments(request):
     return render(request, "course/payments.html", {
         "ct": course_texts(lang), "rows": rows, "q": q, "show": show, "price": settings.PRICE_MONTH,
         "recent": Payment.objects.select_related("user")[:15], "stats": stats, "today": today,
+        "classes": Classroom.objects.select_related("teacher").annotate(n=Count("memberships")),
     })
 
 
@@ -90,3 +98,32 @@ def payment_add(request, user_id):
         name=user.get_full_name() or user.username, date=sub.paid_until.strftime("%d.%m.%Y")))
     back = request.POST.get("next") or ""
     return redirect(back if back.startswith("/") and not back.startswith("//") else "payments")
+
+
+def _back(request):
+    back = request.POST.get("next") or ""
+    return redirect(back if back.startswith("/") and not back.startswith("//") else "payments")
+
+
+@staff_member_required
+@require_POST
+def payment_free(request, user_id):
+    """Включить/выключить бесплатный доступ ученику."""
+    user = get_object_or_404(get_user_model(), pk=user_id, is_staff=False)
+    free = request.POST.get("free") == "1"
+    services.set_free(user, free)
+    ct = course_texts(get_lang(request))
+    messages.success(request, (ct["free_on"] if free else ct["free_off"]).format(name=user.get_full_name() or user.username))
+    return _back(request)
+
+
+@staff_member_required
+@require_POST
+def class_free(request, pk):
+    """Бесплатный доступ всем ученикам класса (и тем, кто вступит позже)."""
+    room = get_object_or_404(Classroom, pk=pk)
+    room.free_access = request.POST.get("free") == "1"
+    room.save(update_fields=["free_access"])
+    ct = course_texts(get_lang(request))
+    messages.success(request, (ct["class_free_on"] if room.free_access else ct["class_free_off"]).format(name=room.name))
+    return _back(request)

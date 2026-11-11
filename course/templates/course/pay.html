@@ -6,7 +6,9 @@
 <h1 class="h1">{{ ct.pay_title }}</h1>
 <p class="lead-text">{{ pay_lead }}</p>
 
-{% if until %}
+{% if free_kind %}
+<p class="paystate paystate--ok">{% if free_kind == 'class' %}{{ ct.pay_free_class }} «{{ free_class }}».{% else %}{{ ct.pay_free_you }}{% endif %}</p>
+{% elif until %}
 <p class="paystate {% if active %}paystate--ok{% else %}paystate--bad{% endif %}">
   {% if active %}{{ ct.pay_active }} <b>{{ until|date:"d.m.Y" }}</b> · {{ days_left }} {{ ct.pay_days_left }}. {{ ct.pay_extend }}
   {% else %}{{ ct.pay_expired }} {{ until|date:"d.m.Y" }}.{% endif %}

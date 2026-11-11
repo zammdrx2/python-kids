@@ -18,6 +18,7 @@
   <a href="?q={{ q|urlencode }}" class="{% if not show %}is-on{% endif %}">{{ ct.all }}</a>
   <a href="?show=active&q={{ q|urlencode }}" class="{% if show == 'active' %}is-on{% endif %}">{{ ct.paid }}</a>
   <a href="?show=expired&q={{ q|urlencode }}" class="{% if show == 'expired' %}is-on{% endif %}">{{ ct.expired }}</a>
+  <a href="?show=free&q={{ q|urlencode }}" class="{% if show == 'free' %}is-on{% endif %}">{{ ct.free }}</a>
 </p>
 
 <div class="panel paylist">
@@ -27,9 +28,18 @@
       <b>{{ r.user.get_full_name|default:r.user.username }}</b>
       <span class="muted">@{{ r.user.username }}{% if r.user.last_login %} · {{ ct.last_active }}: {{ r.user.last_login|date:"d.m H:i" }}{% endif %}</span>
     </div>
+    {% if r.free %}<span class="paybadge paybadge--free">{{ ct.free_badge }}</span>
+    {% elif r.free_class %}<span class="paybadge paybadge--free">{{ ct.free_class_badge }}</span>
+    {% else %}
     <span class="paybadge paybadge--{{ r.state }}{% if r.soon %} paybadge--soon{% endif %}">
       {% if r.state == 'none' %}{{ ct.not_paid }}{% elif r.state == 'active' %}{{ ct.until_short }} {{ r.until|date:"d.m.Y" }}{% else %}{{ ct.expired }} {{ r.until|date:"d.m" }}{% endif %}
     </span>
+    {% endif %}
+    <form method="post" action="{% url 'payment_free' r.user.id %}">{% csrf_token %}
+      <input type="hidden" name="free" value="{% if r.free %}0{% else %}1{% endif %}">
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <button class="btn btn--small btn--soft" type="submit">{% if r.free %}{{ ct.free_take }}{% else %}{{ ct.free_give }}{% endif %}</button>
+    </form>
     <form method="post" action="{% url 'payment_add' r.user.id %}" onsubmit="return confirm('{{ r.user.get_full_name|default:r.user.username|escapejs }}: {{ ct.plus_month }} ({{ price }} ₸)?')">{% csrf_token %}
       <input type="hidden" name="months" value="1">
       <input type="hidden" name="next" value="{{ request.get_full_path }}">
@@ -40,6 +50,24 @@
   <p class="muted">{{ ct.no_users }}</p>
   {% endfor %}
 </div>
+
+{% if classes %}
+<h2 class="h2 section-title">{{ ct.free_classes }}</h2>
+<p class="muted">{{ ct.free_classes_lead }}</p>
+<div class="panel paylist">
+  {% for c in classes %}
+  <div class="payrow">
+    <div class="payrow__who"><b>{{ c.name }}</b> <span class="muted">{{ ct.code }}: {{ c.code }} · {{ c.n }} {{ ct.students_n }} · {{ c.teacher.get_full_name|default:c.teacher.username }}</span></div>
+    {% if c.free_access %}<span class="paybadge paybadge--free">{{ ct.free_badge }}</span>{% endif %}
+    <form method="post" action="{% url 'class_free' c.pk %}">{% csrf_token %}
+      <input type="hidden" name="free" value="{% if c.free_access %}0{% else %}1{% endif %}">
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <button class="btn btn--small{% if c.free_access %} btn--soft{% endif %}" type="submit">{% if c.free_access %}{{ ct.free_turn_off }}{% else %}{{ ct.free_turn_on }}{% endif %}</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
 
 {% if recent %}
 <h2 class="h2 section-title">{{ ct.recent_payments }}</h2>

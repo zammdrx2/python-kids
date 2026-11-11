@@ -465,3 +465,51 @@ class PaidAccessTests(TestCase):
         r = self.client.get(reverse("pay"))
         self.assertContains(r, "wa.me/77078286375")
         self.assertContains(r, "payer")
+
+
+class FreeAccessTests(TestCase):
+    """Бесплатный доступ: отдельному ученику или всему классу (школьники учителя)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command("load_course", verbosity=0)
+        U = get_user_model()
+        cls.kid = U.objects.create_user("freekid", password="pass12345")
+        cls.pupil = U.objects.create_user("pupil", password="pass12345")
+        cls.admin = U.objects.create_user("boss2", password="pass12345", is_staff=True)
+        cls.teacher = U.objects.create_user("t1", password="pass12345")
+
+    def test_admin_gives_and_takes_free_access(self):
+        from .services import has_paid_access
+        self.assertFalse(has_paid_access(self.kid))
+        self.client.login(username="boss2", password="pass12345")
+        self.client.post(reverse("payment_free", args=[self.kid.id]), {"free": "1"})
+        self.assertTrue(has_paid_access(self.kid))
+        self.assertContains(self.client.get(reverse("payments"), {"show": "free"}), "@freekid")
+        self.client.post(reverse("payment_free", args=[self.kid.id]), {"free": "0"})
+        self.assertFalse(has_paid_access(self.kid))
+
+    def test_free_class_opens_lessons_for_members_and_new_joiners(self):
+        from .models import Classroom, Membership
+        from .services import has_paid_access
+        room = Classroom.objects.create(teacher=self.teacher, name="7Б")
+        Membership.objects.create(classroom=room, student=self.pupil)
+        self.assertFalse(has_paid_access(self.pupil))
+        self.client.login(username="boss2", password="pass12345")
+        self.client.post(reverse("class_free", args=[room.pk]), {"free": "1"})
+        self.assertTrue(has_paid_access(self.pupil))
+        Membership.objects.create(classroom=room, student=self.kid)  # вступил позже
+        self.assertTrue(has_paid_access(self.kid))
+        self.client.login(username="pupil", password="pass12345")
+        self.assertContains(self.client.get(reverse("pay")), "7Б")
+
+    def test_only_admin_can_make_free(self):
+        from .models import Classroom
+        from .services import has_paid_access
+        room = Classroom.objects.create(teacher=self.teacher, name="8А")
+        self.client.login(username="t1", password="pass12345")
+        self.client.post(reverse("class_free", args=[room.pk]), {"free": "1"})
+        self.client.post(reverse("payment_free", args=[self.kid.id]), {"free": "1"})
+        room.refresh_from_db()
+        self.assertFalse(room.free_access)
+        self.assertFalse(has_paid_access(self.kid))
