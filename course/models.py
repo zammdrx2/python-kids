@@ -258,3 +258,39 @@ class Certificate(models.Model):
 
     def __str__(self):
         return f"{self.name} - {self.course} ({self.code})"
+
+
+class Subscription(models.Model):
+    """Платный доступ ко всем курсам до даты paid_until (включительно)."""
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="subscription",
+                                verbose_name="Ученик")
+    paid_until = models.DateField("Оплачено до", null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Подписка"
+        verbose_name_plural = "Подписки"
+
+    def __str__(self):
+        return f"{self.user} до {self.paid_until}"
+
+
+class Payment(models.Model):
+    """Запись об оплате, которую отметил администратор (оплата приходит в Kaspi)."""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="payments",
+                             verbose_name="Ученик")
+    amount = models.PositiveIntegerField("Сумма, ₸")
+    months = models.PositiveIntegerField("Месяцев", default=1)
+    paid_until = models.DateField("Доступ продлён до")
+    note = models.CharField("Комментарий", max_length=200, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name="+", verbose_name="Отметил")
+    created_at = models.DateTimeField("Дата", auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Оплата"
+        verbose_name_plural = "Оплаты"
+
+    def __str__(self):
+        return f"{self.user} {self.amount} ₸ → {self.paid_until}"

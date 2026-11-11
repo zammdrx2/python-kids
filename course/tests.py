@@ -313,6 +313,8 @@ class ModuleTestTests(TestCase):
     def setUpTestData(cls):
         call_command("load_course", verbosity=0)
         cls.user = get_user_model().objects.create_user("mt", password="pass12345")
+        from .services import extend_subscription
+        extend_subscription(cls.user, 1)
 
     def setUp(self):
         self.client.login(username="mt", password="pass12345")
@@ -388,3 +390,78 @@ class ModuleTestTests(TestCase):
         for n in range(1, 7):
             self.take(20, n)
         self.assertTrue(course_complete(self.user, course))
+
+
+class PaidAccessTests(TestCase):
+    """Подписка 8000 ₸/мес: первые 2 урока бесплатно, дальше - после оплаты, которую отмечает администратор."""
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command("load_course", verbosity=0)
+        U = get_user_model()
+        cls.kid = U.objects.create_user("payer", password="pass12345")
+        cls.admin = U.objects.create_user("boss", password="pass12345", is_staff=True)
+
+    def solve(self, course, *numbers):
+        for t in Task.objects.filter(lesson__course__slug=course, lesson__number__in=numbers):
+            record_submission(self.kid, t, (t.starter_code or "") + "\nprint(1)", len(t.tests), len(t.tests))
+
+    def test_third_lesson_needs_payment_in_every_course(self):
+        self.client.login(username="payer", password="pass12345")
+        self.solve("python", 1, 2)
+        self.solve("web", 1, 2)
+        self.assertEqual(self.client.get(reverse("course_lesson", args=["python", 2])).status_code, 200)
+        for course in ("python", "web"):
+            r = self.client.get(reverse("course_lesson", args=[course, 3]))
+            self.assertRedirects(r, reverse("pay"))
+        self.assertContains(self.client.get(reverse("course_home", args=["python"])), reverse("pay"))
+
+    def test_admin_marks_payment_and_lessons_open(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models import Payment
+        self.solve("python", 1, 2)
+        self.client.login(username="boss", password="pass12345")
+        r = self.client.post(reverse("payment_add", args=[self.kid.id]), {"months": 1})
+        self.assertRedirects(r, reverse("payments"))
+        p = Payment.objects.get(user=self.kid)
+        self.assertEqual(p.amount, 8000)
+        self.assertGreaterEqual(p.paid_until, timezone.localdate() + timedelta(days=28))
+        self.client.login(username="payer", password="pass12345")
+        self.assertEqual(self.client.get(reverse("course_lesson", args=["python", 3])).status_code, 200)
+        self.assertContains(self.client.get(reverse("pay")), p.paid_until.strftime("%d.%m.%Y"))
+
+    def test_extend_adds_to_remaining_days_and_expires(self):
+        from datetime import date, timedelta
+        from django.utils import timezone
+        from .models import Subscription
+        from .services import add_months, extend_subscription, has_paid_access
+        self.assertEqual(add_months(date(2026, 1, 31), 1), date(2026, 2, 28))
+        self.assertEqual(add_months(date(2026, 12, 15), 1), date(2027, 1, 15))
+        today = timezone.localdate()
+        extend_subscription(self.kid, 1)
+        first = Subscription.objects.get(user=self.kid).paid_until
+        extend_subscription(self.kid, 1)
+        self.assertEqual(Subscription.objects.get(user=self.kid).paid_until, add_months(first, 1))
+        self.assertTrue(has_paid_access(self.kid))
+        Subscription.objects.filter(user=self.kid).update(paid_until=today - timedelta(days=1))
+        self.assertFalse(has_paid_access(self.kid))
+        extend_subscription(self.kid, 1)  # после окончания отсчёт идёт от сегодня
+        self.assertEqual(Subscription.objects.get(user=self.kid).paid_until, add_months(today, 1))
+
+    def test_payments_page_only_for_admin(self):
+        self.client.login(username="payer", password="pass12345")
+        self.assertEqual(self.client.get(reverse("payments")).status_code, 302)
+        self.assertEqual(self.client.post(reverse("payment_add", args=[self.kid.id])).status_code, 302)
+        from .models import Payment
+        self.assertFalse(Payment.objects.exists())
+        self.client.login(username="boss", password="pass12345")
+        self.assertContains(self.client.get(reverse("payments"), {"q": "payer"}), "@payer")
+
+    def test_pay_page_has_kaspi_and_whatsapp(self):
+        r = self.client.get(reverse("pay"))
+        self.assertContains(r, "qr.kaspi.kz")
+        self.client.login(username="payer", password="pass12345")
+        r = self.client.get(reverse("pay"))
+        self.assertContains(r, "wa.me/77078286375")
+        self.assertContains(r, "payer")

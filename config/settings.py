@@ -129,3 +129,10 @@ PYODIDE_URL = os.getenv("PYODIDE_URL", "https://cdn.jsdelivr.net/pyodide/v0.26.4
 
 # Хостинг (PythonAnywhere) принимает https и передаёт запрос дальше - так ссылки в превью будут https
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# Платный доступ: первые FREE_LESSONS уроков каждого курса бесплатны, дальше - подписка.
+# Оплату ученик делает в Kaspi (самозанятый), администратор отмечает её на странице /payments/.
+PRICE_MONTH = int(os.getenv("PRICE_MONTH", "8000"))
+FREE_LESSONS = int(os.getenv("FREE_LESSONS", "2"))
+KASPI_PAY_URL = os.getenv("KASPI_PAY_URL", "https://qr.kaspi.kz/19137848668473225954748785273418335341873")
+PAY_WHATSAPP = os.getenv("PAY_WHATSAPP", "77078286375")

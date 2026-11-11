@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{{ ct.payments }} · {{ t.site_title }}{% endblock %}
+{% block content %}
+<h1 class="h1">{{ ct.payments }}</h1>
+<p class="lead-text">{{ ct.payments_lead }}</p>
+
+<div class="paystats">
+  <div class="panel paystats__item"><span class="paystats__num">{{ stats.active }}</span>{{ ct.active_subs }}</div>
+  <div class="panel paystats__item"><span class="paystats__num">{{ stats.month_sum }} ₸</span>{{ ct.month_income }}</div>
+</div>
+
+<form method="get" class="paysearch">
+  <input class="field" type="search" name="q" value="{{ q }}" placeholder="{{ ct.payments_search }}" aria-label="{{ ct.payments_search }}">
+  <input type="hidden" name="show" value="{{ show }}">
+  <button class="btn" type="submit">{{ ct.find }}</button>
+</form>
+<p class="payfilter">
+  <a href="?q={{ q|urlencode }}" class="{% if not show %}is-on{% endif %}">{{ ct.all }}</a>
+  <a href="?show=active&q={{ q|urlencode }}" class="{% if show == 'active' %}is-on{% endif %}">{{ ct.paid }}</a>
+  <a href="?show=expired&q={{ q|urlencode }}" class="{% if show == 'expired' %}is-on{% endif %}">{{ ct.expired }}</a>
+</p>
+
+<div class="panel paylist">
+  {% for r in rows %}
+  <div class="payrow">
+    <div class="payrow__who">
+      <b>{{ r.user.get_full_name|default:r.user.username }}</b>
+      <span class="muted">@{{ r.user.username }}{% if r.user.last_login %} · {{ ct.last_active }}: {{ r.user.last_login|date:"d.m H:i" }}{% endif %}</span>
+    </div>
+    <span class="paybadge paybadge--{{ r.state }}{% if r.soon %} paybadge--soon{% endif %}">
+      {% if r.state == 'none' %}{{ ct.not_paid }}{% elif r.state == 'active' %}{{ ct.until_short }} {{ r.until|date:"d.m.Y" }}{% else %}{{ ct.expired }} {{ r.until|date:"d.m" }}{% endif %}
+    </span>
+    <form method="post" action="{% url 'payment_add' r.user.id %}" onsubmit="return confirm('{{ r.user.get_full_name|default:r.user.username|escapejs }}: {{ ct.plus_month }} ({{ price }} ₸)?')">{% csrf_token %}
+      <input type="hidden" name="months" value="1">
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <button class="btn btn--small" type="submit">{{ ct.plus_month }}</button>
+    </form>
+  </div>
+  {% empty %}
+  <p class="muted">{{ ct.no_users }}</p>
+  {% endfor %}
+</div>
+
+{% if recent %}
+<h2 class="h2 section-title">{{ ct.recent_payments }}</h2>
+<div class="panel paylist">
+  {% for p in recent %}
+  <div class="payrow">
+    <div class="payrow__who"><b>{{ p.user.get_full_name|default:p.user.username }}</b> <span class="muted">@{{ p.user.username }}</span></div>
+    <span class="muted">{{ p.created_at|date:"d.m.Y H:i" }}</span>
+    <span>{{ p.amount }} ₸ → {{ ct.until_short }} {{ p.paid_until|date:"d.m.Y" }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

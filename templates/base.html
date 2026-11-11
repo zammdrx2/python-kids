@@ -45,7 +45,8 @@
       <nav class="nav" aria-label="{{ t.lessons }}">
         {% if is_teacher %}<a href="{% url 'teacher_home' %}">{{ t.teacher_cabinet }}</a>
         {% elif user.is_authenticated %}<a href="{% url 'join_class' %}">{{ t.my_class }}</a>{% endif %}
-        {% if user.is_staff %}<a href="{% url 'admin:index' %}">{{ t.admin }}</a>{% endif %}
+        {% if user.is_staff %}<a href="{% url 'payments' %}">{{ t.payments }}</a><a href="{% url 'admin:index' %}">{{ t.admin }}</a>
+        {% elif user.is_authenticated %}<a href="{% url 'pay' %}">{{ t.access }}</a>{% endif %}
         <form method="post" action="{% url 'set_language' %}" class="lang">{% csrf_token %}
           <input type="hidden" name="next" value="{{ request.get_full_path }}">
           <button name="lang" value="ru" class="{% if lang == 'ru' %}is-active{% endif %}" aria-pressed="{% if lang == 'ru' %}true{% else %}false{% endif %}">RU</button>

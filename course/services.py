@@ -7,6 +7,7 @@
 """
 from __future__ import annotations
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Count, Max, Sum
@@ -53,6 +54,48 @@ def lesson_progress(user) -> dict[int, dict]:
     return {lid: {"solved": solved.get(lid, 0), "total": n} for lid, n in totals.items()}
 
 
+def has_paid_access(user, today=None) -> bool:
+    """Оплачен ли доступ ко всем урокам (после бесплатных). Администраторам открыто всё."""
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if user.is_staff:
+        return True
+    today = today or timezone.localdate()
+    from .models import Subscription
+    return Subscription.objects.filter(user=user, paid_until__gte=today).exists()
+
+
+def paid_until(user):
+    if not getattr(user, "is_authenticated", False):
+        return None
+    from .models import Subscription
+    s = Subscription.objects.filter(user=user).first()
+    return s.paid_until if s else None
+
+
+def add_months(d, months):
+    """Та же дата через n месяцев (31 января + 1 месяц = 28/29 февраля)."""
+    import calendar
+    m = d.month - 1 + months
+    y, m = d.year + m // 12, m % 12 + 1
+    return d.replace(year=y, month=m, day=min(d.day, calendar.monthrange(y, m)[1]))
+
+
+@transaction.atomic
+def extend_subscription(user, months=1, by=None, amount=None, note=""):
+    """Продлевает доступ на n месяцев: от сегодняшнего дня, если доступ уже закончился,
+    иначе от текущей даты окончания (оплаченные дни не теряются)."""
+    from .models import Payment, Subscription
+    today = timezone.localdate()
+    sub, _ = Subscription.objects.select_for_update().get_or_create(user=user)
+    start = sub.paid_until if sub.paid_until and sub.paid_until >= today else today
+    sub.paid_until = add_months(start, months)
+    sub.save()
+    Payment.objects.create(user=user, months=months, amount=amount if amount is not None else settings.PRICE_MONTH * months,
+                           paid_until=sub.paid_until, created_by=by, note=note[:200])
+    return sub
+
+
 def modules_with_test() -> dict[int, int]:
     """{id модуля: номер} для модулей, у которых есть итоговый тест."""
     return dict(Module.objects.exclude(test=[]).values_list("id", "number"))
@@ -79,13 +122,17 @@ def lesson_locks(user, progress=None) -> dict[int, tuple | None]:
     started = set()
     if user.is_authenticated:
         started = set(Submission.objects.filter(user=user).values_list("task__lesson_id", flat=True))
+    paid = has_paid_access(user)
+    free = settings.FREE_LESSONS
     locks, prev_done, course_id, prev_module = {}, True, None, None
     for lesson in Lesson.objects.order_by("course_id", "number"):
         if lesson.course_id != course_id:  # в каждом курсе первый урок открыт
             course_id, prev_done, prev_module = lesson.course_id, True, None
         lock = None
         if not staff:
-            if not prev_done:
+            if lesson.number > free and not paid:
+                lock = ("paid", None)
+            elif not prev_done:
                 lock = ("lesson", lesson.number - 1)
             elif (prev_module in with_test and lesson.module_id != prev_module
                   and prev_module not in passed and lesson.id not in started):

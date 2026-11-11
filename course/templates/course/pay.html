@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ ct.pay_title }} · {{ t.site_title }}{% endblock %}
+{% block content %}
+<a class="back" href="{% url 'home' %}">← {{ ct.all_courses }}</a>
+<h1 class="h1">{{ ct.pay_title }}</h1>
+<p class="lead-text">{{ pay_lead }}</p>
+
+{% if until %}
+<p class="paystate {% if active %}paystate--ok{% else %}paystate--bad{% endif %}">
+  {% if active %}{{ ct.pay_active }} <b>{{ until|date:"d.m.Y" }}</b> · {{ days_left }} {{ ct.pay_days_left }}. {{ ct.pay_extend }}
+  {% else %}{{ ct.pay_expired }} {{ until|date:"d.m.Y" }}.{% endif %}
+</p>
+{% endif %}
+
+<div class="paybox">
+  <section class="panel paybox__info">
+    <p class="paybox__price">{{ price_fmt }} <span>{{ ct.per_month }}</span></p>
+    <h2 class="h2">{{ ct.pay_how }}</h2>
+    <ol class="paysteps">
+      <li>{{ ct.pay_step1 }}</li>
+      <li>{{ pay_step2 }}</li>
+      <li>{{ ct.pay_step3 }}</li>
+    </ol>
+    {% if user.is_authenticated %}
+    <div class="paybox__actions">
+      <a class="btn btn--big paybox__kaspi" href="{{ kaspi_url }}" target="_blank" rel="noopener">{{ ct.pay_kaspi }}</a>
+      <a class="btn btn--big btn--soft" href="{{ wa_url }}" target="_blank" rel="noopener">{{ ct.pay_wa }}</a>
+    </div>
+    {% else %}
+    <p class="flash">{{ ct.pay_login_first }}</p>
+    <div class="paybox__actions"><a class="btn btn--big" href="{% url 'signup' %}">{{ t.signup }}</a>
+      <a class="btn btn--big btn--soft" href="{% url 'login' %}?next={% url 'pay' %}">{{ t.login }}</a></div>
+    {% endif %}
+    <p class="muted paybox__note">{{ ct.pay_receipt }}</p>
+  </section>
+  <a class="panel paybox__qr" href="{{ kaspi_url }}" target="_blank" rel="noopener">
+    <img src="{% static 'img/kaspi-qr.png' %}" alt="Kaspi QR" width="520" height="786">
+  </a>
+</div>
+{% endblock %}

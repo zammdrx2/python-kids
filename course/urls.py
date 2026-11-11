@@ -1,6 +1,7 @@
 from django.urls import path
 
 from . import classroom_views as cv
+from . import pay_views as pv
 from . import views
 
 urlpatterns = [
@@ -14,6 +15,9 @@ urlpatterns = [
     path("teacher/class/<int:pk>/delete/", cv.teacher_delete_class, name="teacher_delete_class"),
     path("teacher/class/<int:pk>/student/<int:user_id>/", cv.teacher_student, name="teacher_student"),
     path("teacher/class/<int:pk>/student/<int:user_id>/remove/", cv.teacher_remove_student, name="teacher_remove_student"),
+    path("pay/", pv.pay, name="pay"),
+    path("payments/", pv.payments, name="payments"),
+    path("payments/<int:user_id>/add/", pv.payment_add, name="payment_add"),
     path("join/", cv.join_class, name="join_class"),
     path("join/<str:code>/", cv.join_class, name="join_class_code"),
     path("certificate/<str:code>/", cv.certificate_verify, name="certificate_verify"),
