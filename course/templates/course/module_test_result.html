@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}{{ ct.module_test }} · {{ module_title }}{% endblock %}
+{% block topstyle %}style="background: {{ color }}"{% endblock %}
+{% block band %}
+<div class="band wrap">
+  <a class="back" href="{% url 'course_module' course.slug module.number %}">← {{ module_title }}</a>
+  <h1 class="band__title">{{ ct.module_test }}</h1>
+  <p class="band__sub">{{ ct.module }} {{ module.number }} · {{ module_title }}</p>
+</div>
+{% endblock %}
+{% block content %}
+<section class="panel mres {% if passed_now %}mres--win{% else %}mres--lose{% endif %}">
+  <p class="mres__label">{{ ct.test_your_score }}</p>
+  <p class="mres__score">{{ score }} <span>/ {{ n }}</span></p>
+  <p class="mres__msg">{% if passed_now %}{% if next_module %}{{ ct.test_win }}{% else %}{{ ct.test_win_last }}{% endif %}{% else %}{{ lose }}{% endif %}</p>
+  <div class="panel__foot mres__actions">
+    {% if passed_now %}
+      {% if next_module %}<a class="btn btn--big" href="{% url 'course_module' course.slug next_module.number %}">{{ ct.next_module }}</a>
+      {% else %}<a class="btn btn--big" href="{% url 'course_home' course.slug %}">{{ course_title }}</a>{% endif %}
+    {% else %}
+      <a class="btn btn--soft" href="{% url 'course_module' course.slug module.number %}">{{ ct.to_module }}</a>
+      <a class="btn btn--big" href="{% url 'course_module_test' course.slug module.number %}">{{ ct.test_retry }}</a>
+    {% endif %}
+  </div>
+</section>
+
+<section class="panel">
+  <h2 class="h2">{{ ct.test_answers }}</h2>
+  <p class="muted">{{ ct.test_answers_note }}</p>
+  <ol class="mres__grid">
+    {% for r in rows %}
+    <li class="mres__cell {% if r.ok %}is-ok{% else %}is-bad{% endif %}">
+      <span class="sr">{{ ct.question }}</span> {{ r.num }} <span aria-hidden="true">{% if r.ok %}✓{% else %}✗{% endif %}</span>
+    </li>
+    {% endfor %}
+  </ol>
+  {% for r in rows %}{% if not r.ok %}
+  <div class="mres__wrong">
+    <p class="mres__q"><span class="mres__qnum">{{ r.num }}</span> {{ r.text }}</p>
+    {% if r.code %}<pre class="code"><code>{{ r.code }}</code></pre>{% endif %}
+    <p class="mres__picked">{{ ct.test_your_answer }}: <b>{% if r.picked %}{{ r.picked }}{% else %}{{ ct.test_no_answer }}{% endif %}</b> ✗</p>
+  </div>
+  {% endif %}{% endfor %}
+  {% if result.passed and not passed_now %}<p class="muted">{{ ct.test_passed }} · {{ ct.test_best }}: {{ result.best }} / {{ result.total }}</p>{% endif %}
+</section>
+{% endblock %}

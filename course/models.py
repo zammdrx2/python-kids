@@ -49,6 +49,8 @@ class Module(models.Model):
     number = models.PositiveIntegerField("Номер")
     title_ru = models.CharField("Название (рус)", max_length=200)
     title_kk = models.CharField("Атауы (қаз)", max_length=200, blank=True)
+    # Итоговый тест модуля: [{"q": [ru, kk], "code": "...", "options": [...], "answer": i}]
+    test = models.JSONField("Итоговый тест", default=list, blank=True)
 
     class Meta:
         ordering = ["course", "number"]
@@ -61,6 +63,34 @@ class Module(models.Model):
 
     def title(self, lang):
         return tr(self, "title", lang)
+
+    @property
+    def pass_score(self):
+        """Сколько верных ответов нужно, чтобы сдать тест: 90% (18 из 20)."""
+        import math
+        return math.ceil(len(self.test) * 0.9)
+
+
+class ModuleTestResult(models.Model):
+    """Результат ученика по итоговому тесту модуля (одна запись на пару ученик–модуль)."""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="module_tests",
+                             verbose_name="Ученик")
+    module = models.ForeignKey(Module, on_delete=models.CASCADE, related_name="results", verbose_name="Модуль")
+    best = models.PositiveIntegerField("Лучший результат", default=0)
+    last = models.PositiveIntegerField("Последняя попытка", default=0)
+    total = models.PositiveIntegerField("Вопросов", default=0)
+    passed = models.BooleanField("Сдан", default=False)
+    attempts = models.PositiveIntegerField("Попыток", default=0)
+    passed_at = models.DateTimeField("Сдан", null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("user", "module")
+        verbose_name = "Тест модуля"
+        verbose_name_plural = "Тесты модулей"
+
+    def __str__(self):
+        return f"{self.user} - {self.module}: {self.best}/{self.total}"
 
 
 class Lesson(models.Model):

@@ -1,6 +1,7 @@
 from django.contrib import admin
 
-from .models import Certificate, Classroom, Course, Lesson, Membership, Module, Submission, Task
+from .models import (Certificate, Classroom, Course, Lesson, Membership, Module, ModuleTestResult, Submission,
+                     Task)
 
 
 class LessonInline(admin.TabularInline):
@@ -64,3 +65,10 @@ class CertificateAdmin(admin.ModelAdmin):
     list_filter = ("course",)
     search_fields = ("name", "code", "user__username")
     readonly_fields = ("issued_at",)
+
+
+@admin.register(ModuleTestResult)
+class ModuleTestResultAdmin(admin.ModelAdmin):
+    list_display = ("user", "module", "best", "last", "total", "passed", "attempts", "updated_at")
+    list_filter = ("passed", "module__course")
+    search_fields = ("user__username", "user__first_name", "user__last_name")

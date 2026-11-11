@@ -17,7 +17,7 @@
       <span class="lesson-card__num lesson-card__num--locked" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2.5" fill="currentColor"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2.4"></path></svg></span>
       <span class="lesson-card__body">
         <span class="lesson-card__title">{{ l.title }}{% if l.lesson.is_project %} <span class="tag">{{ ct.project }}</span>{% endif %}</span>
-        <span class="lesson-card__goal">{{ ct.locked_after }} {{ l.lesson.number|add:"-1" }}</span>
+        <span class="lesson-card__goal">{% if l.lock_test %}{{ ct.locked_after_test }} {{ l.lock_test }}{% else %}{{ ct.locked_after }} {{ l.lesson.number|add:"-1" }}{% endif %}</span>
       </span>
     </div>
     {% else %}
@@ -32,5 +32,27 @@
     {% endif %}
   </li>
   {% endfor %}
+  {% if m.test %}
+  <li>
+    {% if m.test.available %}
+    <a class="lesson-card mtest-card{% if m.test.passed %} lesson-card--done{% else %} mtest-card--ready{% endif %}" href="{% url 'course_module_test' course.slug m.module.number %}">
+      <span class="lesson-card__num" style="background: {{ m.color }}">{% if m.test.passed %}✓{% else %}?{% endif %}</span>
+      <span class="lesson-card__body">
+        <span class="lesson-card__title">{{ ct.module_test }}</span>
+        <span class="lesson-card__goal">{{ rule }}</span>
+      </span>
+      <span class="lesson-card__count">{% if m.test.result %}{{ m.test.result.best }} / {{ m.test.n }}{% else %}{{ ct.test_ready }}{% endif %}</span>
+    </a>
+    {% else %}
+    <div class="lesson-card lesson-card--locked" aria-disabled="true">
+      <span class="lesson-card__num lesson-card__num--locked" aria-hidden="true">?</span>
+      <span class="lesson-card__body">
+        <span class="lesson-card__title">{{ ct.module_test }}</span>
+        <span class="lesson-card__goal">{{ ct.test_locked }}. {{ rule }}</span>
+      </span>
+    </div>
+    {% endif %}
+  </li>
+  {% endif %}
 </ol>
 {% endblock %}

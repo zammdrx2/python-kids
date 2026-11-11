@@ -80,13 +80,18 @@ def teacher_student(request, pk, user_id):
             summary.append({"course": c, "title": c.title(lang), "solved": solved, "total": total,
                             "percent": round(100 * solved / total) if total else 0,
                             "cert": Certificate.objects.filter(user=student, course=c).first()})
+    from .models import ModuleTestResult
+    tests = [{"course": r.module.course.title(lang), "module": r.module.number, "best": r.best, "total": r.total,
+              "passed": r.passed, "attempts": r.attempts}
+             for r in ModuleTestResult.objects.filter(user=student).select_related("module__course")
+             .order_by("module__course__order", "module__number")]
     subs = (Submission.objects.filter(user=student).select_related("task__lesson__course")
             .order_by("-updated_at")[:40])
     recent = [{"sub": s, "task_title": s.task.title(lang), "course": s.task.lesson.course.title(lang),
                "lesson": s.task.lesson.number,
                "show_code": s.task.kind not in (Task.Kind.QUIZ,)} for s in subs]
     return render(request, "course/teacher_student.html", _ctx(
-        request, room=room, student=student, summary=summary, recent=recent))
+        request, room=room, student=student, summary=summary, recent=recent, tests=tests))
 
 
 @_teacher_required

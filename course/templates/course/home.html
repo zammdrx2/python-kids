@@ -16,7 +16,16 @@
 </a>
 {% endif %}
 
-{% if next_item %}
+{% if next_test %}
+<a class="continue" href="{% url 'course_module_test' course.slug next_test.module.number %}">
+  <span class="continue__num" style="background: {{ next_test.color }}">?</span>
+  <span class="continue__text">
+    <span class="continue__meta">{{ ct.test_take }} {{ next_test.module.number }}</span>
+    <span class="continue__title">{{ next_test.title }}</span>
+  </span>
+  <span class="continue__btn">{{ ct.test_start }}</span>
+</a>
+{% elif next_item %}
 <a class="continue" href="{% url 'course_lesson' course.slug next_item.lesson.number %}">
   <span class="continue__num" style="background: {{ next_item.color }}">{{ next_item.lesson.number|stringformat:"02d" }}</span>
   <span class="continue__text">
@@ -36,7 +45,7 @@
     <span class="tile__title">{{ m.title }}</span>
     <span class="tile__desc">{{ m.desc }}</span>
     <span class="tile__bar" aria-hidden="true">{% for s in m.steps %}<span class="{% if s %}on{% endif %}"></span>{% endfor %}</span>
-    <span class="tile__status">{% if m.locked %}<svg class="lock" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2.5" fill="currentColor"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2.4"></path></svg> {{ ct.module_locked }}{% elif m.done == m.total %}{{ ct.module_done }}{% elif m.done %}{{ m.done }} / {{ m.total }} {{ ct.lessons_word }}{% else %}{{ m.total }} {{ ct.lessons_word }}{% endif %}</span>
+    <span class="tile__status">{% if m.locked %}<svg class="lock" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2.5" fill="currentColor"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2.4"></path></svg> {{ ct.module_locked }}{% elif m.complete %}{{ ct.module_done }}{% elif m.done == m.total and m.test %}{{ ct.test_take }}{% elif m.done %}{{ m.done }} / {{ m.total }} {{ ct.lessons_word }}{% else %}{{ m.total }} {{ ct.lessons_word }}{% endif %}</span>
   </a>
   {% endfor %}
 </div>

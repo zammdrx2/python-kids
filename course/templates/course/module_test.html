@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}{{ ct.module_test }} · {{ module_title }}{% endblock %}
+{% block topstyle %}style="background: {{ color }}"{% endblock %}
+{% block band %}
+<div class="band wrap">
+  <a class="back" href="{% url 'course_module' course.slug module.number %}">← {{ module_title }}</a>
+  <h1 class="band__title">{{ ct.module_test }}</h1>
+  <p class="band__sub">{{ ct.module }} {{ module.number }} · {{ rule }}</p>
+</div>
+{% endblock %}
+{% block content %}
+<p class="lead-text mtest__intro">{{ ct.test_retry_rule }}{% if result %} {{ ct.test_best }}: <b>{{ result.best }} / {{ result.total }}</b>{% if result.passed %} ✓{% endif %}.{% endif %}</p>
+
+<form method="post" class="mtest" id="mtest" novalidate>{% csrf_token %}
+  {% for q in questions %}
+  <fieldset class="panel mtest__q" id="{{ q.name }}">
+    <legend class="mtest__legend"><span class="mtest__num" style="background: {{ color }}">{{ q.num }}</span> {{ q.text }}</legend>
+    {% if q.code %}<pre class="code"><code>{{ q.code }}</code></pre>{% endif %}
+    <div class="quiz">
+      {% for o in q.options %}
+      <label class="quiz__opt"><input type="radio" name="{{ q.name }}" value="{{ o.value }}"><span class="mtest__opt">{{ o.text }}</span></label>
+      {% endfor %}
+    </div>
+  </fieldset>
+  {% endfor %}
+  <div class="mtest__foot">
+    <p class="flash mtest__warn" id="mtest-warn" hidden>{{ ct.test_unanswered }} <b id="mtest-left"></b></p>
+    <button class="btn btn--big" type="submit">{{ ct.test_finish }}</button>
+  </div>
+</form>
+
+<script>
+(function () {
+  var form = document.getElementById("mtest");
+  var names = Array.prototype.map.call(form.querySelectorAll("fieldset.mtest__q"), function (f) { return f.id; });
+  form.addEventListener("submit", function (e) {
+    var left = names.filter(function (n) { return !form.querySelector('input[name="' + n + '"]:checked'); });
+    if (left.length) {
+      e.preventDefault();
+      document.getElementById("mtest-left").textContent = left.length;
+      document.getElementById("mtest-warn").hidden = false;
+      document.getElementById(left[0]).scrollIntoView({behavior: "smooth", block: "center"});
+      return;
+    }
+    form.querySelector('button[type="submit"]').disabled = true;
+  });
+  form.addEventListener("change", function () {
+    var left = names.filter(function (n) { return !form.querySelector('input[name="' + n + '"]:checked'); });
+    document.getElementById("mtest-left").textContent = left.length;
+    if (!left.length) document.getElementById("mtest-warn").hidden = true;
+  });
+})();
+</script>
+{% endblock %}

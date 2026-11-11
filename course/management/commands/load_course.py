@@ -63,11 +63,15 @@ class Command(BaseCommand):
             "color": c.get("color", "#FFD166"), "order": c.get("order", 0),
         })
 
+        # итоговые тесты модулей лежат отдельно: data/module_tests/<slug>.json → {"1": [вопросы], ...}
+        tests_path = DATA_DIR / "module_tests" / f"{course.slug}.json"
+        module_tests = json.loads(tests_path.read_text(encoding="utf-8")) if tests_path.exists() else {}
+
         n_lessons = n_tasks = 0
         for m in data["modules"]:
             ru, kk = pair(m["title"])
-            module, _ = Module.objects.update_or_create(course=course, number=m["number"],
-                                                        defaults={"title_ru": ru, "title_kk": kk})
+            module, _ = Module.objects.update_or_create(course=course, number=m["number"], defaults={
+                "title_ru": ru, "title_kk": kk, "test": module_tests.get(str(m["number"]), [])})
             for l in m["lessons"]:
                 tru, tkk = pair(l["title"])
                 gru, gkk = pair(l.get("goal", ""))
@@ -92,4 +96,6 @@ class Command(BaseCommand):
                     n_tasks += 1
                 lesson.tasks.exclude(id__in=keep).delete()
 
-        self.stdout.write(self.style.SUCCESS(f"Курс «{cru}» загружен: уроков {n_lessons}, заданий {n_tasks}"))
+        n_q = sum(len(v) for v in module_tests.values())
+        extra = f", вопросов в тестах модулей {n_q}" if n_q else ""
+        self.stdout.write(self.style.SUCCESS(f"Курс «{cru}» загружен: уроков {n_lessons}, заданий {n_tasks}{extra}"))

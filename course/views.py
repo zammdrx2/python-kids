@@ -11,7 +11,7 @@ from django.views.decorators.http import require_POST
 from core.ui import get_lang
 
 from . import office_checks, services
-from .models import Certificate, Course, Lesson, Module, Submission, Task
+from .models import Certificate, Course, Lesson, Module, ModuleTestResult, Submission, Task
 from .ui import course_texts
 
 MODULE_COLORS = ["#FFB4A2", "#FFD166", "#8ED1C6", "#B9C2FD", "#F9B4D6", "#A8DC98"]
@@ -68,9 +68,12 @@ def module_style(course, number, lang):
 
 
 def _course_map(user, course, lang):
-    """Модули курса с уроками, прогрессом и замками."""
+    """Модули курса с уроками, прогрессом, замками и итоговыми тестами."""
     progress = services.lesson_progress(user)
-    access = services.lesson_access(user, progress)
+    locks = services.lesson_locks(user, progress)
+    results = {}
+    if user.is_authenticated:
+        results = {r.module_id: r for r in ModuleTestResult.objects.filter(user=user, module__course=course)}
     modules, flat = [], []
     for m in Module.objects.filter(course=course).prefetch_related("lessons"):
         color, desc = module_style(course, m.number, lang)
@@ -78,13 +81,22 @@ def _course_map(user, course, lang):
         for l in m.lessons.all():
             p = progress.get(l.id, {"solved": 0, "total": 0})
             state = "done" if p["total"] and p["solved"] == p["total"] else ("part" if p["solved"] else "todo")
+            lock = locks.get(l.id)
             item = {"lesson": l, "title": l.title(lang), "goal": l.goal(lang), "progress": p, "state": state,
-                    "module": m, "color": color, "locked": not access.get(l.id, False)}
+                    "module": m, "color": color, "locked": lock is not None,
+                    "lock_test": lock[1] if lock and lock[0] == "test" else None}
             lessons.append(item)
             flat.append(item)
         done = sum(1 for i in lessons if i["state"] == "done")
+        lessons_done = bool(lessons) and done == len(lessons)
+        test = None
+        if m.test:
+            r = results.get(m.id)
+            test = {"n": len(m.test), "need": m.pass_score, "result": r, "passed": bool(r and r.passed),
+                    "available": lessons_done or bool(getattr(user, "is_staff", False))}
         modules.append({"module": m, "title": m.title(lang), "lessons": lessons, "color": color, "desc": desc,
-                        "locked": bool(lessons) and lessons[0]["locked"],
+                        "locked": bool(lessons) and lessons[0]["locked"], "test": test,
+                        "complete": lessons_done and (test is None or test["passed"]),
                         "done": done, "total": len(lessons), "steps": [k < done for k in range(len(lessons))]})
     return modules, flat
 
@@ -108,13 +120,17 @@ def home(request):
     """Выбор курса."""
     lang = get_lang(request)
     progress = services.lesson_progress(request.user)
+    passed = services.passed_module_tests(request.user)
+    with_test = services.modules_with_test()
     courses = []
     for c in Course.objects.all():
         ids = list(c.lessons.values_list("id", flat=True))
         done = sum(1 for i in ids if progress.get(i, {}).get("total") and
                    progress[i]["solved"] >= progress[i]["total"])
+        tests_ok = set(c.modules.filter(id__in=with_test).values_list("id", flat=True)) <= passed
         courses.append({"course": c, "title": c.title(lang), "desc": c.desc(lang), "lessons": len(ids), "done": done,
-                        "lessons_word": lessons_word(len(ids), lang), "complete": bool(ids) and done == len(ids)})
+                        "lessons_word": lessons_word(len(ids), lang),
+                        "complete": bool(ids) and done == len(ids) and tests_ok})
     return render(request, "course/courses.html", {
         "courses": courses, "ct": course_texts(lang), "points": services.user_points(request.user),
     })
@@ -125,11 +141,16 @@ def course_home(request, course):
     course = _course(course)
     modules, flat = _course_map(request.user, course, lang)
     next_item = next((i for i in flat if i["state"] != "done" and not i["locked"]), None)
+    # тест модуля, который уже можно сдавать, важнее уроков следующих модулей
+    next_test = next((m for m in modules if m["test"] and m["test"]["available"] and not m["test"]["passed"]
+                      and not request.user.is_staff), None)
+    if next_test and next_item and next_item["module"].number <= next_test["module"].number:
+        next_test = None
     return render(request, "course/home.html", {
         "course": course, "course_title": course.title(lang), "course_desc": course.desc(lang),
         "modules": modules, "ct": course_texts(lang), "points": services.user_points(request.user),
-        "next_item": next_item, "started": any(i["progress"]["solved"] for i in flat),
-        "complete": bool(flat) and all(i["state"] == "done" for i in flat),
+        "next_item": next_item, "next_test": next_test, "started": any(i["progress"]["solved"] for i in flat),
+        "complete": bool(flat) and all(m["complete"] for m in modules),
         "cert": Certificate.objects.filter(user=request.user, course=course).first() if request.user.is_authenticated else None,
     })
 
@@ -141,9 +162,81 @@ def module_detail(request, course, number):
     mod = next((m for m in modules if m["module"].number == number), None)
     if mod is None:
         raise Http404
+    ct = course_texts(lang)
+    rule = ct["test_rule"].format(n=mod["test"]["n"], need=mod["test"]["need"]) if mod["test"] else ""
     return render(request, "course/module.html", {"course": course, "course_title": course.title(lang),
-                                                  "m": mod, "ct": course_texts(lang),
+                                                  "m": mod, "ct": ct, "rule": rule,
                                                   "points": services.user_points(request.user)})
+
+
+def _pick(v, lang):
+    """Строка или пара (ru, kk) → текст на нужном языке."""
+    if isinstance(v, (list, tuple)):
+        return v[1] if lang == "kk" and len(v) > 1 and v[1] else v[0]
+    return v
+
+
+def module_test(request, course, number):
+    """Итоговый тест модуля: 20 вопросов, нужно 18 верных. Порядок вопросов и вариантов
+    перемешивается на каждой попытке; правильные ответы хранятся только на сервере."""
+    lang = get_lang(request)
+    ct = course_texts(lang)
+    course = _course(course)
+    module = get_object_or_404(Module, course=course, number=number)
+    if not module.test:
+        raise Http404
+    if not request.user.is_authenticated:
+        return redirect_to_login(request.get_full_path())
+    if not services.module_lessons_done(request.user, module) and not request.user.is_staff:
+        messages.info(request, ct["test_not_yet"])
+        return redirect("course_module", course.slug, number)
+
+    key = f"module_test_{module.id}"
+    color, _ = module_style(course, number, lang)
+    ctx = {"course": course, "course_title": course.title(lang), "module": module, "module_title": module.title(lang),
+           "ct": ct, "color": color, "points": services.user_points(request.user),
+           "need": module.pass_score, "n": len(module.test),
+           "rule": ct["test_rule"].format(n=len(module.test), need=module.pass_score),
+           "lose": ct["test_lose"].format(n=len(module.test), need=module.pass_score)}
+
+    if request.method == "POST":
+        attempt = request.session.get(key)
+        if not attempt:  # попытка устарела (например, открыта в другой вкладке)
+            messages.info(request, ct["test_expired"])
+            return redirect("course_module_test", course.slug, number)
+        rows, score = [], 0
+        for pos, (qi, perm) in enumerate(zip(attempt["order"], attempt["perm"])):
+            q = module.test[qi]
+            raw = request.POST.get(f"q{pos}")
+            chosen = perm[int(raw)] if raw is not None and raw.isdigit() and int(raw) < len(perm) else None
+            ok = chosen == q["answer"]
+            score += ok
+            rows.append({"num": pos + 1, "ok": ok, "text": _pick(q["q"], lang), "code": q.get("code", ""),
+                         "picked": _pick(q["options"][chosen], lang) if chosen is not None else ""})
+        del request.session[key]
+        result = services.record_module_test(request.user, module, score)
+        next_module = Module.objects.filter(course=course, number__gt=number).order_by("number").first()
+        ctx.update({"score": score, "rows": rows, "passed_now": score >= module.pass_score, "result": result,
+                    "next_module": next_module, "next_module_title": next_module.title(lang) if next_module else ""})
+        return render(request, "course/module_test_result.html", ctx)
+
+    import random
+    rnd = random.SystemRandom()
+    order = list(range(len(module.test)))
+    rnd.shuffle(order)
+    perm = []
+    questions = []
+    for pos, qi in enumerate(order):
+        q = module.test[qi]
+        p = list(range(len(q["options"])))
+        rnd.shuffle(p)
+        perm.append(p)
+        questions.append({"num": pos + 1, "name": f"q{pos}", "text": _pick(q["q"], lang), "code": q.get("code", ""),
+                          "options": [{"value": i, "text": _pick(q["options"][oi], lang)} for i, oi in enumerate(p)]})
+    request.session[key] = {"order": order, "perm": perm}
+    ctx.update({"questions": questions,
+                "result": ModuleTestResult.objects.filter(user=request.user, module=module).first()})
+    return render(request, "course/module_test.html", ctx)
 
 
 def _quiz_options(task, lang):
@@ -161,7 +254,11 @@ def lesson_detail(request, course, number):
     course = _course(course)
     lesson = get_object_or_404(Lesson.objects.select_related("module"), course=course, number=number)
     ct = course_texts(lang)
-    if not services.is_lesson_open(request.user, lesson):
+    lock = services.lesson_lock(request.user, lesson)
+    if lock:
+        if lock[0] == "test":
+            messages.info(request, ct["locked_test_msg"].format(n=lock[1]))
+            return redirect("course_module", course.slug, lock[1])
         if request.user.is_authenticated:
             messages.info(request, f"{ct['locked_msg']} {number - 1}.")
         else:

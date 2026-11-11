@@ -20,5 +20,6 @@ urlpatterns = [
     path("<slug:course>/certificate/", cv.certificate, name="certificate"),
     path("<slug:course>/", views.course_home, name="course_home"),
     path("<slug:course>/module/<int:number>/", views.module_detail, name="course_module"),
+    path("<slug:course>/module/<int:number>/test/", views.module_test, name="course_module_test"),
     path("<slug:course>/lesson/<int:number>/", views.lesson_detail, name="course_lesson"),
 ]

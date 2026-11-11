@@ -304,3 +304,87 @@ class TeacherAndCertificateTests(TestCase):
         r = self.client.get(reverse("certificate_verify", args=[cert.code.lower()]))
         self.assertContains(r, "подлинный")
         self.assertEqual(self.client.get(reverse("certificate_verify", args=["NOPE1234"])).status_code, 404)
+
+
+class ModuleTestTests(TestCase):
+    """Итоговые тесты модулей: 20 вопросов, нужно 18, без сдачи следующий модуль закрыт."""
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command("load_course", verbosity=0)
+        cls.user = get_user_model().objects.create_user("mt", password="pass12345")
+
+    def setUp(self):
+        self.client.login(username="mt", password="pass12345")
+
+    def solve_lessons(self, *numbers):
+        for t in Task.objects.filter(lesson__course__slug="python", lesson__number__in=numbers):
+            record_submission(self.user, t, (t.starter_code or "") + "\nprint(1)", len(t.tests), len(t.tests))
+
+    def take(self, n_right, number=1):
+        url = reverse("course_module_test", args=["python", number])
+        r = self.client.get(url)
+        self.assertEqual(r.status_code, 200)
+        from .models import Module
+        module = Module.objects.get(course__slug="python", number=number)
+        attempt = self.client.session[f"module_test_{module.id}"]
+        data = {}
+        for pos, (qi, perm) in enumerate(zip(attempt["order"], attempt["perm"])):
+            right = perm.index(module.test[qi]["answer"])
+            data[f"q{pos}"] = right if pos < n_right else (right + 1) % len(perm)
+        return self.client.post(url, data)
+
+    def test_python_modules_have_20_questions(self):
+        from .models import Module
+        for m in Module.objects.filter(course__slug="python"):
+            self.assertEqual(len(m.test), 20)
+            self.assertEqual(m.pass_score, 18)
+
+    def test_test_closed_until_lessons_done(self):
+        r = self.client.get(reverse("course_module_test", args=["python", 1]))
+        self.assertRedirects(r, reverse("course_module", args=["python", 1]))
+
+    def test_answers_not_in_page(self):
+        self.solve_lessons(1, 2, 3, 4)
+        html = self.client.get(reverse("course_module_test", args=["python", 1])).content.decode()
+        self.assertEqual(html.count('class="panel mtest__q"'), 20)
+        self.assertNotIn('"answer"', html)
+
+    def test_17_is_not_enough_18_opens_next_module(self):
+        self.solve_lessons(1, 2, 3, 4)
+        lesson5 = reverse("course_lesson", args=["python", 5])
+        self.assertRedirects(self.client.get(lesson5), reverse("course_module", args=["python", 1]))
+        r = self.take(17)
+        self.assertContains(r, "17")
+        self.assertRedirects(self.client.get(lesson5), reverse("course_module", args=["python", 1]))
+        r = self.take(18)
+        self.assertContains(r, reverse("course_module", args=["python", 2]))
+        self.assertEqual(self.client.get(lesson5).status_code, 200)
+        from .models import ModuleTestResult
+        res = ModuleTestResult.objects.get(user=self.user, module__number=1, module__course__slug="python")
+        self.assertEqual((res.best, res.attempts, res.passed), (18, 2, True))
+        # неудачная пересдача не отнимает уже сданный тест
+        self.take(5)
+        self.assertEqual(self.client.get(lesson5).status_code, 200)
+
+    def test_post_without_attempt_is_refused(self):
+        self.solve_lessons(1, 2, 3, 4)
+        url = reverse("course_module_test", args=["python", 1])
+        self.assertRedirects(self.client.post(url, {"q0": 0}), url, fetch_redirect_response=False)
+
+    def test_started_lessons_stay_open(self):
+        """Кто уже начал модуль 2 до появления тестов, не теряет доступ."""
+        self.solve_lessons(1, 2, 3, 4)
+        t = Task.objects.filter(lesson__course__slug="python", lesson__number=5).first()
+        Submission.objects.create(user=self.user, task=t, code="x")
+        self.assertEqual(self.client.get(reverse("course_lesson", args=["python", 5])).status_code, 200)
+
+    def test_certificate_needs_all_tests(self):
+        from .models import Course
+        from .services import course_complete
+        course = Course.objects.get(slug="python")
+        self.solve_lessons(*range(1, 25))
+        self.assertFalse(course_complete(self.user, course))
+        for n in range(1, 7):
+            self.take(20, n)
+        self.assertTrue(course_complete(self.user, course))

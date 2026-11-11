@@ -20,6 +20,15 @@
 <p class="muted">{{ ct.nothing_yet }}</p>
 {% endif %}
 
+{% if tests %}
+<h2 class="h2 section-title">{{ ct.module_tests }}</h2>
+<div class="mtests">
+  {% for t in tests %}
+  <span class="mtests__item{% if t.passed %} is-ok{% endif %}">{{ t.course }} · {{ ct.module }} {{ t.module }}: {{ t.best }} / {{ t.total }}{% if t.passed %} ✓{% endif %} <span class="muted">({{ ct.attempts }}: {{ t.attempts }})</span></span>
+  {% endfor %}
+</div>
+{% endif %}
+
 {% if recent %}
 <h2 class="h2 section-title">{{ ct.recent_solutions }}</h2>
 <div class="panel solutions">

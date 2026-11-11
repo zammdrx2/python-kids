@@ -372,3 +372,36 @@ a.class-card:hover { border-color: var(--ink); color: var(--ink); }
 .cert-banner__medal { font-size: 40px; }
 .cert-banner__text { flex: 1; min-width: 200px; font-weight: 800; font-size: 19px; }
 .cert-medal { font-size: 56px; margin: 0; text-align: center; }
+
+/* Итоговый тест модуля */
+.mtest__intro { margin-bottom: 18px; }
+.mtest { display: grid; gap: 18px; }
+.mtest .panel + .panel { margin-top: 0; }
+.mtest__q { border: 0; margin: 0; min-width: 0; }
+.mtest__legend { display: flex; align-items: flex-start; gap: 14px; float: left; width: 100%; margin-bottom: 14px; font-weight: 800; font-size: 20px; line-height: 1.35; padding: 0; }
+.mtest__legend + * { clear: both; }
+.mtest__num { flex: none; width: 40px; height: 40px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; font-size: 17px; }
+.mtest__opt { white-space: pre-wrap; font-family: inherit; }
+.mtest__foot { display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
+.mtest__warn { margin: 0; }
+.mtest__warn[hidden] { display: none; }
+.mtest-card--ready { box-shadow: 0 0 0 3px var(--ink); }
+.mres { text-align: center; }
+.mres__label { margin: 0 auto; font-weight: 700; color: var(--soft); }
+.mres__score { margin: 4px auto 8px; font: 800 clamp(56px, 10vw, 88px)/1 var(--font); }
+.mres__score span { font-size: .45em; color: var(--muted); }
+.mres__msg { margin: 0 auto; font-size: 19px; font-weight: 600; }
+.mres--win .mres__score { color: var(--ok-ink); }
+.mres--lose .mres__score { color: var(--bad-ink); }
+.mres__actions { justify-content: center; }
+.mres__grid { list-style: none; padding: 0; margin: 14px 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; }
+.mres__cell { border-radius: 12px; padding: 10px 6px; text-align: center; font-weight: 800; }
+.mres__cell.is-ok { background: var(--ok); color: var(--ok-ink); }
+.mres__cell.is-bad { background: var(--bad); color: var(--bad-ink); }
+.mtests { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.mtests__item { border-radius: 10px; padding: 6px 12px; font-weight: 700; font-size: 15px; background: var(--field); }
+.mtests__item.is-ok { background: var(--ok); color: var(--ok-ink); }
+.mres__wrong { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
+.mres__q { display: flex; gap: 12px; align-items: flex-start; font-weight: 700; font-size: 18px; margin: 0 0 10px; }
+.mres__qnum { flex: none; width: 32px; height: 32px; border-radius: 10px; background: var(--bad); color: var(--bad-ink); display: inline-flex; align-items: center; justify-content: center; font-size: 15px; }
+.mres__picked { margin: 0; color: var(--bad-ink); white-space: pre-wrap; }

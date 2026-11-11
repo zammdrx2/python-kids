@@ -12,7 +12,7 @@ from django.db import transaction
 from django.db.models import Count, Max, Sum
 from django.utils import timezone
 
-from .models import Lesson, Submission, Task
+from .models import Lesson, Module, ModuleTestResult, Submission, Task
 
 
 @transaction.atomic
@@ -53,23 +53,87 @@ def lesson_progress(user) -> dict[int, dict]:
     return {lid: {"solved": solved.get(lid, 0), "total": n} for lid, n in totals.items()}
 
 
-def lesson_access(user, progress=None) -> dict[int, bool]:
-    """{id урока: открыт ли}. Урок открывается, когда решены все задания предыдущего.
-    Преподавателю (is_staff) открыто всё; гостю - только первый урок."""
+def modules_with_test() -> dict[int, int]:
+    """{id модуля: номер} для модулей, у которых есть итоговый тест."""
+    return dict(Module.objects.exclude(test=[]).values_list("id", "number"))
+
+
+def passed_module_tests(user) -> set[int]:
+    """id модулей, итоговый тест которых ученик сдал."""
+    if not user.is_authenticated:
+        return set()
+    return set(ModuleTestResult.objects.filter(user=user, passed=True).values_list("module_id", flat=True))
+
+
+def lesson_locks(user, progress=None) -> dict[int, tuple | None]:
+    """{id урока: None, если открыт, иначе причина}: ("lesson", номер предыдущего урока)
+    или ("test", номер модуля, тест которого нужно сдать).
+    Урок открывается, когда решены все задания предыдущего; первый урок следующего модуля -
+    когда сдан тест предыдущего модуля (если у модуля есть тест). Уроки, которые ученик уже
+    начал решать до появления тестов, остаются открытыми. Преподавателю (is_staff) открыто всё."""
     if progress is None:
         progress = lesson_progress(user)
-    access, prev_done, course_id = {}, True, None
+    staff = bool(getattr(user, "is_staff", False))
+    with_test = modules_with_test()  # {id модуля: номер}
+    passed = passed_module_tests(user)
+    started = set()
+    if user.is_authenticated:
+        started = set(Submission.objects.filter(user=user).values_list("task__lesson_id", flat=True))
+    locks, prev_done, course_id, prev_module = {}, True, None, None
     for lesson in Lesson.objects.order_by("course_id", "number"):
         if lesson.course_id != course_id:  # в каждом курсе первый урок открыт
-            course_id, prev_done = lesson.course_id, True
-        access[lesson.id] = bool(getattr(user, "is_staff", False)) or prev_done
+            course_id, prev_done, prev_module = lesson.course_id, True, None
+        lock = None
+        if not staff:
+            if not prev_done:
+                lock = ("lesson", lesson.number - 1)
+            elif (prev_module in with_test and lesson.module_id != prev_module
+                  and prev_module not in passed and lesson.id not in started):
+                lock = ("test", with_test[prev_module])
+        locks[lesson.id] = lock
         p = progress.get(lesson.id, {"solved": 0, "total": 0})
         prev_done = user.is_authenticated and p["total"] > 0 and p["solved"] >= p["total"]
-    return access
+        prev_module = lesson.module_id
+    return locks
+
+
+def lesson_access(user, progress=None) -> dict[int, bool]:
+    """{id урока: открыт ли}."""
+    return {lid: lock is None for lid, lock in lesson_locks(user, progress).items()}
 
 
 def is_lesson_open(user, lesson) -> bool:
     return lesson_access(user).get(lesson.id, False)
+
+
+def lesson_lock(user, lesson):
+    return lesson_locks(user).get(lesson.id)
+
+
+def module_lessons_done(user, module, progress=None) -> bool:
+    """Решены ли все задания всех уроков модуля - тогда можно сдавать тест."""
+    if not user.is_authenticated:
+        return False
+    if progress is None:
+        progress = lesson_progress(user)
+    ids = list(module.lessons.values_list("id", flat=True))
+    return bool(ids) and all(progress.get(i, {}).get("total") and
+                             progress[i]["solved"] >= progress[i]["total"] for i in ids)
+
+
+@transaction.atomic
+def record_module_test(user, module, score: int) -> ModuleTestResult:
+    total = len(module.test)
+    score = max(0, min(int(score), total))
+    res, _ = ModuleTestResult.objects.select_for_update().get_or_create(user=user, module=module)
+    res.attempts += 1
+    res.last, res.total = score, total
+    res.best = max(res.best, score)
+    if score >= module.pass_score and not res.passed:
+        res.passed = True
+        res.passed_at = timezone.now()
+    res.save()
+    return res
 
 
 def user_points(user) -> int:
@@ -104,8 +168,12 @@ def course_progress(user, course) -> tuple[int, int]:
 
 
 def course_complete(user, course) -> bool:
+    """Курс пройден: решены все задания и сданы все тесты модулей."""
     solved, total = course_progress(user, course)
-    return total > 0 and solved >= total
+    if not (total > 0 and solved >= total):
+        return False
+    need = set(Module.objects.filter(course=course).exclude(test=[]).values_list("id", flat=True))
+    return need <= passed_module_tests(user)
 
 
 def issue_certificate(user, course):
