@@ -442,3 +442,5 @@ a.class-card:hover { border-color: var(--ink); color: var(--ink); }
 .paybadge--soon { background: #FFE9B0; color: #6B4A00; }
 @media (max-width: 760px) { .paybox { grid-template-columns: 1fr; } }
 .paybadge--free { background: #DCE3FF; color: #2B3A8C; }
+.paydisc { margin: -6px 0 14px; font-weight: 700; color: var(--ok-ink); }
+.paydisc s { color: var(--muted); font-weight: 600; }

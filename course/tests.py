@@ -393,7 +393,7 @@ class ModuleTestTests(TestCase):
 
 
 class PaidAccessTests(TestCase):
-    """Подписка 8000 ₸/мес: первые 2 урока бесплатно, дальше - после оплаты, которую отмечает администратор."""
+    """Подписка (15 000 ₸, ученикам класса администратора 8 000 ₸): первые 2 урока бесплатно, дальше - после оплаты, которую отмечает администратор."""
 
     @classmethod
     def setUpTestData(cls):
@@ -425,7 +425,7 @@ class PaidAccessTests(TestCase):
         r = self.client.post(reverse("payment_add", args=[self.kid.id]), {"months": 1})
         self.assertRedirects(r, reverse("payments"))
         p = Payment.objects.get(user=self.kid)
-        self.assertEqual(p.amount, 8000)
+        self.assertEqual(p.amount, 15000)
         self.assertGreaterEqual(p.paid_until, timezone.localdate() + timedelta(days=28))
         self.client.login(username="payer", password="pass12345")
         self.assertEqual(self.client.get(reverse("course_lesson", args=["python", 3])).status_code, 200)
@@ -513,3 +513,37 @@ class FreeAccessTests(TestCase):
         room.refresh_from_db()
         self.assertFalse(room.free_access)
         self.assertFalse(has_paid_access(self.kid))
+
+
+class ClassPriceTests(TestCase):
+    """Ученик класса администратора платит 8 000 ₸, остальные 15 000 ₸; класс обычного учителя скидку не даёт."""
+
+    @classmethod
+    def setUpTestData(cls):
+        U = get_user_model()
+        cls.admin = U.objects.create_user("adm", password="pass12345", is_staff=True)
+        cls.teacher = U.objects.create_user("tch", password="pass12345")
+        cls.a = U.objects.create_user("inmyclass", password="pass12345")
+        cls.b = U.objects.create_user("outside", password="pass12345")
+        cls.c = U.objects.create_user("othertch", password="pass12345")
+        from .models import Classroom, Membership
+        Membership.objects.create(classroom=Classroom.objects.create(teacher=cls.admin, name="Мой"), student=cls.a)
+        Membership.objects.create(classroom=Classroom.objects.create(teacher=cls.teacher, name="Чужой"), student=cls.c)
+
+    def test_prices(self):
+        from .services import user_price
+        self.assertEqual(user_price(self.a), 8000)
+        self.assertEqual(user_price(self.b), 15000)
+        self.assertEqual(user_price(self.c), 15000)
+
+    def test_payment_amount_and_pages(self):
+        from .models import Payment
+        self.client.login(username="adm", password="pass12345")
+        self.client.post(reverse("payment_add", args=[self.a.id]))
+        self.client.post(reverse("payment_add", args=[self.b.id]))
+        self.assertEqual(Payment.objects.get(user=self.a).amount, 8000)
+        self.assertEqual(Payment.objects.get(user=self.b).amount, 15000)
+        self.client.login(username="inmyclass", password="pass12345")
+        self.assertContains(self.client.get(reverse("pay")), "8 000")
+        self.client.login(username="outside", password="pass12345")
+        self.assertContains(self.client.get(reverse("pay")), "15 000")

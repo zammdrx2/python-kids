@@ -28,17 +28,19 @@ def pay(request):
     until = info if kind in ("paid", None) else None
     today = timezone.localdate()
     active = kind == "paid"
+    price = services.user_price(request.user)
     wa_text = ""
     if request.user.is_authenticated:
         name = request.user.get_full_name() or request.user.username
-        wa_text = ct["pay_wa_text"].format(name=name, login=request.user.username, price=settings.PRICE_MONTH)
+        wa_text = ct["pay_wa_text"].format(name=name, login=request.user.username, price=services.fmt_price(price))
     return render(request, "course/pay.html", {
         "ct": ct, "points": services.user_points(request.user),
-        "price": settings.PRICE_MONTH, "free": settings.FREE_LESSONS, "kaspi_url": settings.KASPI_PAY_URL,
+        "price": price, "free": settings.FREE_LESSONS, "class_discount": price == settings.CLASS_PRICE != settings.PRICE_MONTH,
+        "full_price_fmt": services.fmt_price(settings.PRICE_MONTH), "kaspi_url": settings.KASPI_PAY_URL,
         "wa_url": f"https://wa.me/{settings.PAY_WHATSAPP}?text={quote(wa_text)}",
-        "price_fmt": f"{settings.PRICE_MONTH:,}".replace(",", " "),
+        "price_fmt": services.fmt_price(price),
         "pay_lead": ct["pay_lead"].format(free=settings.FREE_LESSONS),
-        "pay_step2": ct["pay_step2"].format(price=f"{settings.PRICE_MONTH:,}".replace(",", " ")),
+        "pay_step2": ct["pay_step2"].format(price=services.fmt_price(price)),
         "until": until, "active": active, "free_kind": kind if kind in ("free", "class") else "",
         "free_class": info if kind == "class" else "", "days_left": (until - today).days if active else 0,
     })
@@ -64,13 +66,16 @@ def payments(request):
         users = users.filter(Q(subscription__free=True) | Q(memberships__classroom__free_access=True)).distinct()
     users = users.order_by("-last_login", "-date_joined")[:100]
     in_free_class = set(Membership.objects.filter(classroom__free_access=True).values_list("student_id", flat=True))
+    in_my_class = set(Membership.objects.filter(classroom__teacher__is_staff=True).values_list("student_id", flat=True))
     rows = []
     for u in users:
         s = getattr(u, "subscription", None)
         until = getattr(s, "paid_until", None)
         state = "none" if not until else ("active" if until >= today else "expired")
         free = bool(s and s.free)
+        price = settings.CLASS_PRICE if u.id in in_my_class else settings.PRICE_MONTH
         rows.append({"user": u, "until": until, "state": state, "free": free, "free_class": u.id in in_free_class,
+                     "price": price, "price_fmt": services.fmt_price(price), "my_class": u.id in in_my_class,
                      "soon": state == "active" and (until - today).days <= 3})
     stats = {
         "active": Subscription.objects.filter(paid_until__gte=today).count(),
@@ -78,7 +83,7 @@ def payments(request):
                          .values_list("amount", flat=True)),
     }
     return render(request, "course/payments.html", {
-        "ct": course_texts(lang), "rows": rows, "q": q, "show": show, "price": settings.PRICE_MONTH,
+        "ct": course_texts(lang), "rows": rows, "q": q, "show": show,
         "recent": Payment.objects.select_related("user")[:15], "stats": stats, "today": today,
         "classes": Classroom.objects.select_related("teacher").annotate(n=Count("memberships")),
     })

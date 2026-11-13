@@ -18,6 +18,7 @@
 <div class="paybox">
   <section class="panel paybox__info">
     <p class="paybox__price">{{ price_fmt }} <span>{{ ct.per_month }}</span></p>
+    {% if class_discount %}<p class="paydisc">{{ ct.pay_class_discount }} <s>{{ full_price_fmt }} ₸</s></p>{% endif %}
     <h2 class="h2">{{ ct.pay_how }}</h2>
     <ol class="paysteps">
       <li>{{ ct.pay_step1 }}</li>

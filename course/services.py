@@ -100,6 +100,20 @@ def paid_until(user):
     return s.paid_until if s else None
 
 
+def user_price(user) -> int:
+    """Цена месяца для ученика: со скидкой, если он в классе администратора (учитель is_staff),
+    иначе обычная. Классы обычных учителей скидку не дают - иначе любой мог бы создать класс сам."""
+    from .models import Membership
+    if getattr(user, "is_authenticated", False) and Membership.objects.filter(
+            student=user, classroom__teacher__is_staff=True).exists():
+        return settings.CLASS_PRICE
+    return settings.PRICE_MONTH
+
+
+def fmt_price(n) -> str:
+    return f"{n:,}".replace(",", " ")
+
+
 def add_months(d, months):
     """Та же дата через n месяцев (31 января + 1 месяц = 28/29 февраля)."""
     import calendar
@@ -118,7 +132,7 @@ def extend_subscription(user, months=1, by=None, amount=None, note=""):
     start = sub.paid_until if sub.paid_until and sub.paid_until >= today else today
     sub.paid_until = add_months(start, months)
     sub.save()
-    Payment.objects.create(user=user, months=months, amount=amount if amount is not None else settings.PRICE_MONTH * months,
+    Payment.objects.create(user=user, months=months, amount=amount if amount is not None else user_price(user) * months,
                            paid_until=sub.paid_until, created_by=by, note=note[:200])
     return sub
 
