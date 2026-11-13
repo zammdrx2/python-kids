@@ -132,9 +132,9 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # Платный доступ: первые FREE_LESSONS уроков каждого курса бесплатны, дальше - подписка.
 # Оплату ученик делает в Kaspi (самозанятый), администратор отмечает её на странице /payments/.
-PRICE_MONTH = int(os.getenv("PRICE_MONTH", "15000"))
+PRICE_MONTH = int(os.getenv("PRICE_MONTH", "14990"))
 # цена для учеников классов администратора (тех, кто вступил по коду класса учителя-администратора)
-CLASS_PRICE = int(os.getenv("CLASS_PRICE", "8000"))
+CLASS_PRICE = int(os.getenv("CLASS_PRICE", "7990"))
 FREE_LESSONS = int(os.getenv("FREE_LESSONS", "2"))
 KASPI_PAY_URL = os.getenv("KASPI_PAY_URL", "https://qr.kaspi.kz/19137848668473225954748785273418335341873")
 PAY_WHATSAPP = os.getenv("PAY_WHATSAPP", "77078286375")

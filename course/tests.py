@@ -393,7 +393,7 @@ class ModuleTestTests(TestCase):
 
 
 class PaidAccessTests(TestCase):
-    """Подписка (15 000 ₸, ученикам класса администратора 8 000 ₸): первые 2 урока бесплатно, дальше - после оплаты, которую отмечает администратор."""
+    """Подписка (14 990 ₸, ученикам класса администратора 7 990 ₸): первые 2 урока бесплатно, дальше - после оплаты, которую отмечает администратор."""
 
     @classmethod
     def setUpTestData(cls):
@@ -425,7 +425,7 @@ class PaidAccessTests(TestCase):
         r = self.client.post(reverse("payment_add", args=[self.kid.id]), {"months": 1})
         self.assertRedirects(r, reverse("payments"))
         p = Payment.objects.get(user=self.kid)
-        self.assertEqual(p.amount, 15000)
+        self.assertEqual(p.amount, 14990)
         self.assertGreaterEqual(p.paid_until, timezone.localdate() + timedelta(days=28))
         self.client.login(username="payer", password="pass12345")
         self.assertEqual(self.client.get(reverse("course_lesson", args=["python", 3])).status_code, 200)
@@ -516,7 +516,7 @@ class FreeAccessTests(TestCase):
 
 
 class ClassPriceTests(TestCase):
-    """Ученик класса администратора платит 8 000 ₸, остальные 15 000 ₸; класс обычного учителя скидку не даёт."""
+    """Ученик класса администратора платит 7 990 ₸, остальные 14 990 ₸; класс обычного учителя скидку не даёт."""
 
     @classmethod
     def setUpTestData(cls):
@@ -532,18 +532,18 @@ class ClassPriceTests(TestCase):
 
     def test_prices(self):
         from .services import user_price
-        self.assertEqual(user_price(self.a), 8000)
-        self.assertEqual(user_price(self.b), 15000)
-        self.assertEqual(user_price(self.c), 15000)
+        self.assertEqual(user_price(self.a), 7990)
+        self.assertEqual(user_price(self.b), 14990)
+        self.assertEqual(user_price(self.c), 14990)
 
     def test_payment_amount_and_pages(self):
         from .models import Payment
         self.client.login(username="adm", password="pass12345")
         self.client.post(reverse("payment_add", args=[self.a.id]))
         self.client.post(reverse("payment_add", args=[self.b.id]))
-        self.assertEqual(Payment.objects.get(user=self.a).amount, 8000)
-        self.assertEqual(Payment.objects.get(user=self.b).amount, 15000)
+        self.assertEqual(Payment.objects.get(user=self.a).amount, 7990)
+        self.assertEqual(Payment.objects.get(user=self.b).amount, 14990)
         self.client.login(username="inmyclass", password="pass12345")
-        self.assertContains(self.client.get(reverse("pay")), "8 000")
+        self.assertContains(self.client.get(reverse("pay")), "7 990")
         self.client.login(username="outside", password="pass12345")
-        self.assertContains(self.client.get(reverse("pay")), "15 000")
+        self.assertContains(self.client.get(reverse("pay")), "14 990")
