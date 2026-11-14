@@ -335,3 +335,18 @@ class Purchase(models.Model):
         unique_together = ("user", "item")
         verbose_name = "Покупка"
         verbose_name_plural = "Покупки"
+
+
+class StreakBonus(models.Model):
+    """Бонус за серию дней подряд с решёнными заданиями (3, 7, 30 дней)."""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="streak_bonuses",
+                             verbose_name="Ученик")
+    days = models.PositiveIntegerField("Дней подряд")
+    start = models.DateField("Начало серии")
+    points = models.PositiveIntegerField("Баллы")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("user", "start", "days")
+        verbose_name = "Бонус за серию"
+        verbose_name_plural = "Бонусы за серию"

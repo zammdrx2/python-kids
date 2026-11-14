@@ -21,4 +21,8 @@ def ui(request):
     user = getattr(request, "user", None)
     if user is not None and user.is_authenticated:
         teacher = user.is_staff or user.groups.filter(name="Учителя").exists()
-    return {"lang": lang, "t": texts_for(lang), "is_teacher": teacher, "v": ASSET_VERSION}
+    streak_days = 0
+    if user is not None and user.is_authenticated:
+        from course.services import streak
+        streak_days = streak(user)["days"]
+    return {"lang": lang, "t": texts_for(lang), "is_teacher": teacher, "v": ASSET_VERSION, "streak_days": streak_days}

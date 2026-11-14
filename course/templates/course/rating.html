@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}{{ ct.rating }} · {{ t.site_title }}{% endblock %}
+{% block content %}
+<h1 class="h1">{{ ct.rating }}</h1>
+<p class="lead-text">{{ ct.rating_lead }} {{ week_start|date:"d.m" }}.</p>
+
+<section class="panel streak-card{% if streak.today %} is-today{% endif %}">
+  <span class="streak-card__fire" aria-hidden="true">🔥</span>
+  <div class="streak-card__text">
+    <p class="streak-card__days"><b>{{ streak.days }}</b> {{ ct.streak_days }}</p>
+    <p class="muted">{% if streak.today %}{{ ct.streak_today_done }}{% elif streak.days %}{{ ct.streak_keep }}{% else %}{{ ct.streak_start }}{% endif %}</p>
+  </div>
+  <ul class="streak-card__bonus">
+    {% for b in bonuses %}<li class="{% if streak.days >= b.days %}is-done{% endif %}">{{ b.days }} {{ ct.streak_days_short }} → ★ {{ b.points }}</li>{% endfor %}
+  </ul>
+</section>
+
+{% if rooms|length > 1 %}
+<nav class="hero-tabs rating-tabs" aria-label="{{ ct.rating }}">
+  {% for c in rooms %}<a href="?class={{ c.pk }}" class="{% if room and c.pk == room.pk %}is-on{% endif %}">{{ c.name }}</a>{% endfor %}
+</nav>
+{% endif %}
+
+{% if room %}
+<h2 class="h2 section-title">{{ room.name }}</h2>
+<ol class="rating">
+  {% for r in rows %}
+  <li class="panel rating__row{% if r.me %} is-me{% endif %}{% if r.place <= 3 and r.week %} is-top is-top{{ r.place }}{% endif %}">
+    <span class="rating__place">{% if r.week and r.place == 1 %}🥇{% elif r.week and r.place == 2 %}🥈{% elif r.week and r.place == 3 %}🥉{% else %}{{ r.place }}{% endif %}</span>
+    <span class="rating__hero">{{ r.art }}</span>
+    <span class="rating__name">{{ r.name }}{% if r.me %} <span class="tag">{{ ct.rating_you }}</span>{% endif %}
+      <span class="muted rating__sub">{{ ct.hero_earned }}: {{ r.total }}{% if r.streak %} · 🔥 {{ r.streak }}{% endif %}</span></span>
+    <span class="rating__pts">★ {{ r.week }}<small>{{ ct.rating_week }}</small></span>
+  </li>
+  {% empty %}
+  <li class="muted">{{ ct.rating_empty }}</li>
+  {% endfor %}
+</ol>
+{% else %}
+<section class="panel">
+  <p>{{ ct.rating_no_class }}</p>
+  <a class="btn" href="{% url 'join_class' %}">{{ t.my_class }}</a>
+</section>
+{% endif %}
+{% endblock %}

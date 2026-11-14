@@ -35,10 +35,13 @@ def record_submission(user, task: Task, code: str, passed: int, total: int) -> S
         if ok or passed >= sub.passed_tests or not sub.solved:
             sub.passed_tests, sub.total_tests = passed, total
 
-    if ok and not sub.solved:
+    first_solve = ok and not sub.solved
+    if first_solve:
         sub.solved = True
         sub.solved_at = timezone.now()
     sub.save()
+    if first_solve:
+        award_streak(user)
     return sub
 
 
@@ -225,10 +228,89 @@ def record_module_test(user, module, score: int) -> ModuleTestResult:
 
 
 def points_earned(user) -> int:
-    """Все баллы, заработанные за решённые задания."""
+    """Все баллы, заработанные за решённые задания, плюс бонусы за серии дней."""
+    from .models import StreakBonus
     if not user.is_authenticated:
         return 0
-    return Submission.objects.filter(user=user, solved=True).aggregate(s=Sum("task__points"))["s"] or 0
+    tasks = Submission.objects.filter(user=user, solved=True).aggregate(s=Sum("task__points"))["s"] or 0
+    bonus = StreakBonus.objects.filter(user=user).aggregate(s=Sum("points"))["s"] or 0
+    return tasks + bonus
+
+
+# ------------------------------------------------------------------ серия дней 🔥
+
+STREAK_BONUS = {3: 20, 7: 50, 30: 200}
+
+
+def active_days(user, since_days=400) -> set:
+    """Дни (по местному времени), когда ученик решил хотя бы одно задание."""
+    from datetime import timedelta
+    since = timezone.now() - timedelta(days=since_days)
+    return {timezone.localtime(t).date() for t in Submission.objects.filter(
+        user=user, solved=True, solved_at__gte=since).values_list("solved_at", flat=True)}
+
+
+def streak(user, today=None) -> dict:
+    """{"days": длина серии, "today": решал ли сегодня, "start": первый день серии}.
+    Серия не сгорает до конца дня: если сегодня ещё не решал, считается до вчера."""
+    from datetime import timedelta
+    if not getattr(user, "is_authenticated", False):
+        return {"days": 0, "today": False, "start": None}
+    today = today or timezone.localdate()
+    days = active_days(user)
+    d = today if today in days else today - timedelta(days=1)
+    n = 0
+    while d in days:
+        n += 1
+        d -= timedelta(days=1)
+    return {"days": n, "today": today in days, "start": d + timedelta(days=1) if n else None}
+
+
+def award_streak(user):
+    """Начисляет бонус, когда серия достигла 3, 7 или 30 дней (один раз на серию)."""
+    from .models import StreakBonus
+    s = streak(user)
+    if s["today"] and s["days"] in STREAK_BONUS:
+        StreakBonus.objects.get_or_create(user=user, start=s["start"], days=s["days"],
+                                          defaults={"points": STREAK_BONUS[s["days"]]})
+
+
+# ------------------------------------------------------------------ рейтинг класса
+
+def week_start(today=None):
+    from datetime import timedelta
+    today = today or timezone.localdate()
+    return today - timedelta(days=today.weekday())
+
+
+def class_rating(classroom, today=None):
+    """Ученики класса по баллам за текущую неделю (с понедельника)."""
+    from datetime import datetime, time
+    from .models import Hero, StreakBonus
+    start = week_start(today)
+    start_dt = timezone.make_aware(datetime.combine(start, time.min))
+    students = [m.student for m in classroom.memberships.select_related("student")]
+    ids = [u.id for u in students]
+    week = dict(Submission.objects.filter(user_id__in=ids, solved=True, solved_at__gte=start_dt)
+                .values("user_id").annotate(s=Sum("task__points")).values_list("user_id", "s"))
+    total = dict(Submission.objects.filter(user_id__in=ids, solved=True)
+                 .values("user_id").annotate(s=Sum("task__points")).values_list("user_id", "s"))
+    for uid, s in StreakBonus.objects.filter(user_id__in=ids, created_at__gte=start_dt).values("user_id") \
+            .annotate(s=Sum("points")).values_list("user_id", "s"):
+        week[uid] = (week.get(uid) or 0) + s
+    for uid, s in StreakBonus.objects.filter(user_id__in=ids).values("user_id") \
+            .annotate(s=Sum("points")).values_list("user_id", "s"):
+        total[uid] = (total.get(uid) or 0) + s
+    heroes = {h.user_id: h for h in Hero.objects.filter(user_id__in=ids)}
+    rows = [{"user": u, "week": week.get(u.id) or 0, "total": total.get(u.id) or 0, "hero": heroes.get(u.id),
+             "streak": streak(u)["days"]} for u in students]
+    rows.sort(key=lambda r: (-r["week"], -r["total"], (r["user"].get_full_name() or r["user"].username).lower()))
+    place, prev = 0, None
+    for i, r in enumerate(rows, 1):
+        if (r["week"], r["total"]) != prev:
+            place, prev = i, (r["week"], r["total"])
+        r["place"] = place
+    return rows
 
 
 def points_spent(user) -> int:

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import (Certificate, Classroom, Course, Lesson, Membership, Module, ModuleTestResult, Payment,
+from .models import (StreakBonus, Certificate, Classroom, Course, Lesson, Membership, Module, ModuleTestResult, Payment,
                      Submission, Subscription, Task, Hero, Purchase)
 
 
@@ -96,3 +96,9 @@ class HeroAdmin(admin.ModelAdmin):
 class PurchaseAdmin(admin.ModelAdmin):
     list_display = ("user", "item", "price", "created_at")
     search_fields = ("user__username", "item")
+
+
+@admin.register(StreakBonus)
+class StreakBonusAdmin(admin.ModelAdmin):
+    list_display = ("user", "days", "points", "start", "created_at")
+    search_fields = ("user__username", "user__first_name", "user__last_name")

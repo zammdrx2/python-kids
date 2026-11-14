@@ -45,6 +45,7 @@
       <nav class="nav" aria-label="{{ t.lessons }}">
         {% if is_teacher %}<a href="{% url 'teacher_home' %}">{{ t.teacher_cabinet }}</a>
         {% elif user.is_authenticated %}<a href="{% url 'join_class' %}">{{ t.my_class }}</a>{% endif %}
+        {% if user.is_authenticated %}<a href="{% url 'rating' %}">{{ t.rating }}</a>{% endif %}
         {% if user.is_staff %}<a href="{% url 'payments' %}">{{ t.payments }}</a><a href="{% url 'admin:index' %}">{{ t.admin }}</a>
         {% elif user.is_authenticated %}<a href="{% url 'pay' %}">{{ t.access }}</a>{% endif %}
         <form method="post" action="{% url 'set_language' %}" class="lang">{% csrf_token %}
@@ -53,7 +54,7 @@
           <button name="lang" value="kk" class="{% if lang == 'kk' %}is-active{% endif %}" aria-pressed="{% if lang == 'kk' %}true{% else %}false{% endif %}">ҚАЗ</button>
         </form>
         {% if user.is_authenticated %}
-          <a class="pill pill--hero" href="{% url 'hero' %}" title="{{ t.my_hero }}">{{ user.first_name|default:user.username }}{% if points or points == 0 %} · ★ {{ points }}{% endif %}</a>
+          <a class="pill pill--hero" href="{% url 'hero' %}" title="{{ t.my_hero }}">{{ user.first_name|default:user.username }}{% if points or points == 0 %} · ★ {{ points }}{% endif %}{% if streak_days %} · <span title="{{ t.streak_title }}">🔥 {{ streak_days }}</span>{% endif %}</a>
           <form method="post" action="{% url 'logout' %}" class="inline">{% csrf_token %}
             <button class="linkbtn" type="submit">{{ t.logout }}</button>
           </form>

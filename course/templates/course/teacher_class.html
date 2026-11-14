@@ -3,6 +3,7 @@
 {% block content %}
 <a class="back" href="{% url 'teacher_home' %}">← {{ ct.back_to_classes }}</a>
 <h1 class="h1">{{ room.name }}</h1>
+<p><a href="{% url 'rating' %}?class={{ room.pk }}">🏆 {{ ct.rating }}</a></p>
 
 <section class="panel invite">
   <div class="invite__code">

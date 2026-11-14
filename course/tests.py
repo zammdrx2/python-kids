@@ -635,3 +635,67 @@ class HeroTests(TestCase):
     def test_login_required(self):
         self.client.logout()
         self.assertEqual(self.client.get(reverse("hero")).status_code, 302)
+
+
+class StreakRatingTests(TestCase):
+    """Серия дней: бонусы за 3/7/30 дней; рейтинг класса за неделю."""
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command("load_course", verbosity=0)
+        U = get_user_model()
+        cls.a = U.objects.create_user("ra", password="pass12345", first_name="Аян")
+        cls.b = U.objects.create_user("rb", password="pass12345", first_name="Бота")
+        cls.out = U.objects.create_user("rc", password="pass12345")
+        cls.t = U.objects.create_user("rt", password="pass12345", is_staff=True)
+        from .models import Classroom, Membership
+        cls.room = Classroom.objects.create(teacher=cls.t, name="7А")
+        for u in (cls.a, cls.b):
+            Membership.objects.create(classroom=cls.room, student=u)
+
+    def solve_on(self, user, tasks, days_ago):
+        from datetime import timedelta
+        from django.utils import timezone
+        for t in tasks:
+            record_submission(user, t, "print(1)", len(t.tests), len(t.tests))
+            Submission.objects.filter(user=user, task=t).update(solved_at=timezone.now() - timedelta(days=days_ago))
+
+    def test_streak_and_bonus(self):
+        from .models import StreakBonus
+        from .services import points_earned, streak
+        tasks = list(Task.objects.filter(lesson__course__slug="python").order_by("lesson__number", "order")[:5])
+        self.solve_on(self.a, tasks[0:1], 2)
+        self.solve_on(self.a, tasks[1:2], 1)
+        self.assertEqual(streak(self.a)["days"], 2)          # сегодня ещё не решал - серия жива
+        self.assertFalse(streak(self.a)["today"])
+        before = points_earned(self.a)
+        record_submission(self.a, tasks[2], "print(1)", len(tasks[2].tests), len(tasks[2].tests))  # сегодня
+        self.assertEqual(streak(self.a)["days"], 3)
+        self.assertEqual(StreakBonus.objects.get(user=self.a).points, 20)
+        self.assertEqual(points_earned(self.a), before + tasks[2].points + 20)
+        record_submission(self.a, tasks[3], "print(1)", len(tasks[3].tests), len(tasks[3].tests))
+        self.assertEqual(StreakBonus.objects.filter(user=self.a).count(), 1)  # бонус один раз
+        self.client.login(username="ra", password="pass12345")
+        self.assertContains(self.client.get(reverse("rating")), "🔥 3")
+
+    def test_broken_streak(self):
+        from .services import streak
+        tasks = list(Task.objects.filter(lesson__course__slug="python")[:2])
+        self.solve_on(self.b, tasks[:1], 3)
+        self.assertEqual(streak(self.b)["days"], 0)
+
+    def test_rating_order_and_access(self):
+        tasks = list(Task.objects.filter(lesson__course__slug="python").order_by("lesson__number", "order")[:4])
+        for t in tasks:
+            record_submission(self.b, t, "print(1)", len(t.tests), len(t.tests))
+        record_submission(self.a, tasks[0], "print(1)", len(tasks[0].tests), len(tasks[0].tests))
+        self.client.login(username="ra", password="pass12345")
+        html = self.client.get(reverse("rating")).content.decode()
+        html = html[html.index('<ol class="rating">'):]
+        self.assertLess(html.index("Бота"), html.index("Аян"))
+        self.assertIn("🥇", html)
+        self.client.login(username="rc", password="pass12345")  # не в классе
+        r = self.client.get(reverse("rating"), {"class": self.room.pk})
+        self.assertNotContains(r, "Бота")
+        self.client.login(username="rt", password="pass12345")  # учитель видит свой класс
+        self.assertContains(self.client.get(reverse("rating"), {"class": self.room.pk}), "Бота")
