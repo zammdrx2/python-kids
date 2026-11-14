@@ -9,7 +9,7 @@ admin.site.site_title = "stack."
 urlpatterns = [
     path("admin/", admin.site.urls),
     # браузеры сами запрашивают /favicon.ico - отдаём значок сайта
-    path("favicon.ico", RedirectView.as_view(url=static("img/favicon.ico"), permanent=True)),
+    path("favicon.ico", RedirectView.as_view(url=static("img/stack-favicon.ico"), permanent=False)),
     path("", include("core.urls")),
     path("", include("course.urls")),
 ]

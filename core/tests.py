@@ -25,9 +25,9 @@ class CoreTests(TestCase):
 class FaviconTests(TestCase):
     def test_favicon(self):
         r = self.client.get("/favicon.ico")
-        self.assertEqual(r.status_code, 301)
-        self.assertTrue(r["Location"].endswith("img/favicon.ico"))
-        self.assertContains(self.client.get(reverse("login")), "favicon.svg")
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(r["Location"].endswith("img/stack-favicon.ico"))
+        self.assertContains(self.client.get(reverse("login")), "stack-icon.svg")
 
 
 class SeoTests(TestCase):
