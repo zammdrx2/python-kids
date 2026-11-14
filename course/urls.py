@@ -1,6 +1,9 @@
 from django.urls import path
 
 from . import classroom_views as cv
+from . import hero_views as hv
+from . import pay_views as pv
+from . import rating_views as rv
 from . import views
 
 urlpatterns = [
@@ -14,6 +17,13 @@ urlpatterns = [
     path("teacher/class/<int:pk>/delete/", cv.teacher_delete_class, name="teacher_delete_class"),
     path("teacher/class/<int:pk>/student/<int:user_id>/", cv.teacher_student, name="teacher_student"),
     path("teacher/class/<int:pk>/student/<int:user_id>/remove/", cv.teacher_remove_student, name="teacher_remove_student"),
+    path("hero/", hv.hero, name="hero"),
+    path("rating/", rv.rating, name="rating"),
+    path("pay/", pv.pay, name="pay"),
+    path("payments/", pv.payments, name="payments"),
+    path("payments/<int:user_id>/add/", pv.payment_add, name="payment_add"),
+    path("payments/<int:user_id>/free/", pv.payment_free, name="payment_free"),
+    path("payments/class/<int:pk>/free/", pv.class_free, name="class_free"),
     path("join/", cv.join_class, name="join_class"),
     path("join/<str:code>/", cv.join_class, name="join_class_code"),
     path("certificate/<str:code>/", cv.certificate_verify, name="certificate_verify"),

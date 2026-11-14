@@ -1,7 +1,7 @@
 from django.contrib import admin
 
-from .models import (Certificate, Classroom, Course, Lesson, Membership, Module, ModuleTestResult, Submission,
-                     Task)
+from .models import (StreakBonus, Certificate, Classroom, Course, Lesson, Membership, Module, ModuleTestResult, Payment,
+                     Submission, Subscription, Task, Hero, Purchase)
 
 
 class LessonInline(admin.TabularInline):
@@ -71,4 +71,34 @@ class CertificateAdmin(admin.ModelAdmin):
 class ModuleTestResultAdmin(admin.ModelAdmin):
     list_display = ("user", "module", "best", "last", "total", "passed", "attempts", "updated_at")
     list_filter = ("passed", "module__course")
+    search_fields = ("user__username", "user__first_name", "user__last_name")
+
+
+@admin.register(Subscription)
+class SubscriptionAdmin(admin.ModelAdmin):
+    list_display = ("user", "paid_until", "updated_at")
+    search_fields = ("user__username", "user__first_name", "user__last_name")
+
+
+@admin.register(Payment)
+class PaymentAdmin(admin.ModelAdmin):
+    list_display = ("user", "amount", "months", "paid_until", "created_at", "created_by")
+    search_fields = ("user__username", "user__first_name", "user__last_name")
+
+
+@admin.register(Hero)
+class HeroAdmin(admin.ModelAdmin):
+    list_display = ("user", "gender", "outfit", "hairfront", "hairback", "acc", "bg", "updated_at")
+    search_fields = ("user__username",)
+
+
+@admin.register(Purchase)
+class PurchaseAdmin(admin.ModelAdmin):
+    list_display = ("user", "item", "price", "created_at")
+    search_fields = ("user__username", "item")
+
+
+@admin.register(StreakBonus)
+class StreakBonusAdmin(admin.ModelAdmin):
+    list_display = ("user", "days", "points", "start", "created_at")
     search_fields = ("user__username", "user__first_name", "user__last_name")

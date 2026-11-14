@@ -12,7 +12,15 @@
 <ol class="lessons">
   {% for l in m.lessons %}
   <li>
-    {% if l.locked %}
+    {% if l.lock_paid %}
+    <a class="lesson-card lesson-card--locked lesson-card--paid" href="{% url 'pay' %}">
+      <span class="lesson-card__num lesson-card__num--locked" aria-hidden="true">₸</span>
+      <span class="lesson-card__body">
+        <span class="lesson-card__title">{{ l.title }}{% if l.lesson.is_project %} <span class="tag">{{ ct.project }}</span>{% endif %}</span>
+        <span class="lesson-card__goal">{{ ct.locked_paid }}</span>
+      </span>
+    </a>
+    {% elif l.locked %}
     <div class="lesson-card lesson-card--locked" aria-disabled="true">
       <span class="lesson-card__num lesson-card__num--locked" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2.5" fill="currentColor"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2.4"></path></svg></span>
       <span class="lesson-card__body">

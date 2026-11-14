@@ -7,6 +7,7 @@
 """
 from __future__ import annotations
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Count, Max, Sum
@@ -34,10 +35,13 @@ def record_submission(user, task: Task, code: str, passed: int, total: int) -> S
         if ok or passed >= sub.passed_tests or not sub.solved:
             sub.passed_tests, sub.total_tests = passed, total
 
-    if ok and not sub.solved:
+    first_solve = ok and not sub.solved
+    if first_solve:
         sub.solved = True
         sub.solved_at = timezone.now()
     sub.save()
+    if first_solve:
+        award_streak(user)
     return sub
 
 
@@ -51,6 +55,89 @@ def lesson_progress(user) -> dict[int, dict]:
             .values("task__lesson").annotate(n=Count("id")).values_list("task__lesson", "n")
         )
     return {lid: {"solved": solved.get(lid, 0), "total": n} for lid, n in totals.items()}
+
+
+def has_paid_access(user, today=None) -> bool:
+    """Оплачен ли доступ ко всем урокам (после бесплатных). Администраторам открыто всё."""
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if user.is_staff:
+        return True
+    today = today or timezone.localdate()
+    from django.db.models import Q
+    from .models import Membership, Subscription
+    if Subscription.objects.filter(Q(free=True) | Q(paid_until__gte=today), user=user).exists():
+        return True
+    # ученики «бесплатного» класса (например, школьники учителя) не платят
+    return Membership.objects.filter(student=user, classroom__free_access=True).exists()
+
+
+def access_info(user):
+    """Как открыт доступ: ("free", None), ("class", название класса), ("paid", дата) или (None, дата/None)."""
+    from .models import Membership, Subscription
+    if not getattr(user, "is_authenticated", False):
+        return None, None
+    s = Subscription.objects.filter(user=user).first()
+    if s and s.free:
+        return "free", None
+    m = Membership.objects.filter(student=user, classroom__free_access=True).select_related("classroom").first()
+    if m:
+        return "class", m.classroom.name
+    until = s.paid_until if s else None
+    return ("paid" if until and until >= timezone.localdate() else None), until
+
+
+def set_free(user, free: bool):
+    from .models import Subscription
+    sub, _ = Subscription.objects.get_or_create(user=user)
+    sub.free = free
+    sub.save()
+    return sub
+
+
+def paid_until(user):
+    if not getattr(user, "is_authenticated", False):
+        return None
+    from .models import Subscription
+    s = Subscription.objects.filter(user=user).first()
+    return s.paid_until if s else None
+
+
+def user_price(user) -> int:
+    """Цена месяца для ученика: со скидкой, если он в классе администратора (учитель is_staff),
+    иначе обычная. Классы обычных учителей скидку не дают - иначе любой мог бы создать класс сам."""
+    from .models import Membership
+    if getattr(user, "is_authenticated", False) and Membership.objects.filter(
+            student=user, classroom__teacher__is_staff=True).exists():
+        return settings.CLASS_PRICE
+    return settings.PRICE_MONTH
+
+
+def fmt_price(n) -> str:
+    return f"{n:,}".replace(",", " ")
+
+
+def add_months(d, months):
+    """Та же дата через n месяцев (31 января + 1 месяц = 28/29 февраля)."""
+    import calendar
+    m = d.month - 1 + months
+    y, m = d.year + m // 12, m % 12 + 1
+    return d.replace(year=y, month=m, day=min(d.day, calendar.monthrange(y, m)[1]))
+
+
+@transaction.atomic
+def extend_subscription(user, months=1, by=None, amount=None, note=""):
+    """Продлевает доступ на n месяцев: от сегодняшнего дня, если доступ уже закончился,
+    иначе от текущей даты окончания (оплаченные дни не теряются)."""
+    from .models import Payment, Subscription
+    today = timezone.localdate()
+    sub, _ = Subscription.objects.select_for_update().get_or_create(user=user)
+    start = sub.paid_until if sub.paid_until and sub.paid_until >= today else today
+    sub.paid_until = add_months(start, months)
+    sub.save()
+    Payment.objects.create(user=user, months=months, amount=amount if amount is not None else user_price(user) * months,
+                           paid_until=sub.paid_until, created_by=by, note=note[:200])
+    return sub
 
 
 def modules_with_test() -> dict[int, int]:
@@ -79,13 +166,17 @@ def lesson_locks(user, progress=None) -> dict[int, tuple | None]:
     started = set()
     if user.is_authenticated:
         started = set(Submission.objects.filter(user=user).values_list("task__lesson_id", flat=True))
+    paid = has_paid_access(user)
+    free = settings.FREE_LESSONS
     locks, prev_done, course_id, prev_module = {}, True, None, None
     for lesson in Lesson.objects.order_by("course_id", "number"):
         if lesson.course_id != course_id:  # в каждом курсе первый урок открыт
             course_id, prev_done, prev_module = lesson.course_id, True, None
         lock = None
         if not staff:
-            if not prev_done:
+            if lesson.number > free and not paid:
+                lock = ("paid", None)
+            elif not prev_done:
                 lock = ("lesson", lesson.number - 1)
             elif (prev_module in with_test and lesson.module_id != prev_module
                   and prev_module not in passed and lesson.id not in started):
@@ -136,10 +227,141 @@ def record_module_test(user, module, score: int) -> ModuleTestResult:
     return res
 
 
-def user_points(user) -> int:
+def points_earned(user) -> int:
+    """Все баллы, заработанные за решённые задания, плюс бонусы за серии дней."""
+    from .models import StreakBonus
     if not user.is_authenticated:
         return 0
-    return Submission.objects.filter(user=user, solved=True).aggregate(s=Sum("task__points"))["s"] or 0
+    tasks = Submission.objects.filter(user=user, solved=True).aggregate(s=Sum("task__points"))["s"] or 0
+    bonus = StreakBonus.objects.filter(user=user).aggregate(s=Sum("points"))["s"] or 0
+    return tasks + bonus
+
+
+# ------------------------------------------------------------------ серия дней 🔥
+
+STREAK_BONUS = {3: 20, 7: 50, 30: 200}
+
+
+def active_days(user, since_days=400) -> set:
+    """Дни (по местному времени), когда ученик решил хотя бы одно задание."""
+    from datetime import timedelta
+    since = timezone.now() - timedelta(days=since_days)
+    return {timezone.localtime(t).date() for t in Submission.objects.filter(
+        user=user, solved=True, solved_at__gte=since).values_list("solved_at", flat=True)}
+
+
+def streak(user, today=None) -> dict:
+    """{"days": длина серии, "today": решал ли сегодня, "start": первый день серии}.
+    Серия не сгорает до конца дня: если сегодня ещё не решал, считается до вчера."""
+    from datetime import timedelta
+    if not getattr(user, "is_authenticated", False):
+        return {"days": 0, "today": False, "start": None}
+    today = today or timezone.localdate()
+    days = active_days(user)
+    d = today if today in days else today - timedelta(days=1)
+    n = 0
+    while d in days:
+        n += 1
+        d -= timedelta(days=1)
+    return {"days": n, "today": today in days, "start": d + timedelta(days=1) if n else None}
+
+
+def award_streak(user):
+    """Начисляет бонус, когда серия достигла 3, 7 или 30 дней (один раз на серию)."""
+    from .models import StreakBonus
+    s = streak(user)
+    if s["today"] and s["days"] in STREAK_BONUS:
+        StreakBonus.objects.get_or_create(user=user, start=s["start"], days=s["days"],
+                                          defaults={"points": STREAK_BONUS[s["days"]]})
+
+
+# ------------------------------------------------------------------ рейтинг класса
+
+def week_start(today=None):
+    from datetime import timedelta
+    today = today or timezone.localdate()
+    return today - timedelta(days=today.weekday())
+
+
+def class_rating(classroom, today=None):
+    """Ученики класса по баллам за текущую неделю (с понедельника)."""
+    from datetime import datetime, time
+    from .models import Hero, StreakBonus
+    start = week_start(today)
+    start_dt = timezone.make_aware(datetime.combine(start, time.min))
+    students = [m.student for m in classroom.memberships.select_related("student")]
+    ids = [u.id for u in students]
+    week = dict(Submission.objects.filter(user_id__in=ids, solved=True, solved_at__gte=start_dt)
+                .values("user_id").annotate(s=Sum("task__points")).values_list("user_id", "s"))
+    total = dict(Submission.objects.filter(user_id__in=ids, solved=True)
+                 .values("user_id").annotate(s=Sum("task__points")).values_list("user_id", "s"))
+    for uid, s in StreakBonus.objects.filter(user_id__in=ids, created_at__gte=start_dt).values("user_id") \
+            .annotate(s=Sum("points")).values_list("user_id", "s"):
+        week[uid] = (week.get(uid) or 0) + s
+    for uid, s in StreakBonus.objects.filter(user_id__in=ids).values("user_id") \
+            .annotate(s=Sum("points")).values_list("user_id", "s"):
+        total[uid] = (total.get(uid) or 0) + s
+    heroes = {h.user_id: h for h in Hero.objects.filter(user_id__in=ids)}
+    rows = [{"user": u, "week": week.get(u.id) or 0, "total": total.get(u.id) or 0, "hero": heroes.get(u.id),
+             "streak": streak(u)["days"]} for u in students]
+    rows.sort(key=lambda r: (-r["week"], -r["total"], (r["user"].get_full_name() or r["user"].username).lower()))
+    place, prev = 0, None
+    for i, r in enumerate(rows, 1):
+        if (r["week"], r["total"]) != prev:
+            place, prev = i, (r["week"], r["total"])
+        r["place"] = place
+    return rows
+
+
+def points_spent(user) -> int:
+    from .models import Purchase
+    if not user.is_authenticated:
+        return 0
+    return Purchase.objects.filter(user=user).aggregate(s=Sum("price"))["s"] or 0
+
+
+def user_points(user) -> int:
+    """Баллы, которые можно потратить в магазине героя (заработано минус потрачено)."""
+    return points_earned(user) - points_spent(user)
+
+
+def get_hero(user):
+    from .models import Hero
+    hero, created = Hero.objects.get_or_create(user=user)
+    return hero
+
+
+class NotEnoughPoints(Exception):
+    pass
+
+
+@transaction.atomic
+def buy_item(user, item_id):
+    """Покупка вещи: баллы списываются один раз, вещь сразу надевается."""
+    from . import avatar, hero_art
+    from .models import Purchase
+    hero = get_hero(user)
+    if item_id in hero_art.ITEMS:
+        if hero_art.ITEMS[item_id][0] != hero.gender:
+            raise ValueError(item_id)
+    elif not (item_id in avatar.ITEMS and avatar.ITEMS[item_id][0] == "bg"):
+        raise ValueError(item_id)
+    slot, price = hero_art.item_slot(item_id), hero_art.item_price(item_id)
+    get_user_model().objects.select_for_update().get(pk=user.pk)  # одна покупка за раз
+    if price and not Purchase.objects.filter(user=user, item=item_id).exists():
+        if user_points(user) < price:
+            raise NotEnoughPoints
+        Purchase.objects.create(user=user, item=item_id, price=price)
+    setattr(hero, slot, item_id)
+    hero.save()
+    return hero
+
+
+def owned_items(user) -> set:
+    from . import avatar, hero_art
+    from .models import Purchase
+    free = hero_art.free_items() | {k for k, v in avatar.ITEMS.items() if v[0] == "bg" and v[1] == 0}
+    return free | set(Purchase.objects.filter(user=user).values_list("item", flat=True))
 
 
 TEACHERS_GROUP = "Учителя"

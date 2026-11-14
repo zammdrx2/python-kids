@@ -208,6 +208,8 @@ class Classroom(models.Model):
                                 verbose_name="Учитель")
     name = models.CharField("Название", max_length=100)
     code = models.CharField("Код для вступления", max_length=8, unique=True, default=_class_code)
+    # ученики такого класса получают доступ ко всем урокам без оплаты (включает только администратор)
+    free_access = models.BooleanField("Бесплатный доступ для учеников", default=False)
     created_at = models.DateTimeField("Создан", auto_now_add=True)
 
     class Meta:
@@ -258,3 +260,93 @@ class Certificate(models.Model):
 
     def __str__(self):
         return f"{self.name} - {self.course} ({self.code})"
+
+
+class Subscription(models.Model):
+    """Платный доступ ко всем курсам до даты paid_until (включительно)."""
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="subscription",
+                                verbose_name="Ученик")
+    paid_until = models.DateField("Оплачено до", null=True, blank=True)
+    free = models.BooleanField("Бесплатный доступ", default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Подписка"
+        verbose_name_plural = "Подписки"
+
+    def __str__(self):
+        return f"{self.user} до {self.paid_until}"
+
+
+class Payment(models.Model):
+    """Запись об оплате, которую отметил администратор (оплата приходит в Kaspi)."""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="payments",
+                             verbose_name="Ученик")
+    amount = models.PositiveIntegerField("Сумма, ₸")
+    months = models.PositiveIntegerField("Месяцев", default=1)
+    paid_until = models.DateField("Доступ продлён до")
+    note = models.CharField("Комментарий", max_length=200, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name="+", verbose_name="Отметил")
+    created_at = models.DateTimeField("Дата", auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Оплата"
+        verbose_name_plural = "Оплаты"
+
+    def __str__(self):
+        return f"{self.user} {self.amount} ₸ → {self.paid_until}"
+
+
+class Hero(models.Model):
+    """Персонаж ученика (слои рисунков - course/hero_art.py)."""
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="hero",
+                                verbose_name="Ученик")
+    gender = models.CharField("Пол", max_length=1, default="m", choices=[("m", "Парень"), ("f", "Девушка")])
+    hair_color = models.CharField("Цвет волос", max_length=10, default="brown")
+    face = models.CharField("Выражение лица", max_length=20, default="smile_1")
+    outfit = models.CharField(max_length=30, default="m_raglan")
+    hairfront = models.CharField(max_length=30, default="m_front1")
+    hairback = models.CharField(max_length=30, default="m_back1")
+    acc = models.CharField(max_length=30, default="m_noacc")
+    bg = models.CharField(max_length=30, default="bg_room")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Герой"
+        verbose_name_plural = "Герои"
+
+    def look(self, **override):
+        d = {f: getattr(self, f) for f in ("gender", "hair_color", "face", "outfit", "hairfront", "hairback", "acc", "bg")}
+        d.update(override)
+        return d
+
+
+class Purchase(models.Model):
+    """Купленная за баллы вещь для героя."""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="purchases",
+                             verbose_name="Ученик")
+    item = models.CharField("Вещь", max_length=30)
+    price = models.PositiveIntegerField("Цена, баллы")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("user", "item")
+        verbose_name = "Покупка"
+        verbose_name_plural = "Покупки"
+
+
+class StreakBonus(models.Model):
+    """Бонус за серию дней подряд с решёнными заданиями (3, 7, 30 дней)."""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="streak_bonuses",
+                             verbose_name="Ученик")
+    days = models.PositiveIntegerField("Дней подряд")
+    start = models.DateField("Начало серии")
+    points = models.PositiveIntegerField("Баллы")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("user", "start", "days")
+        verbose_name = "Бонус за серию"
+        verbose_name_plural = "Бонусы за серию"
