@@ -14,7 +14,7 @@ from . import office_checks, services
 from .models import Certificate, Course, Lesson, Module, ModuleTestResult, Submission, Task
 from .ui import course_texts
 
-MODULE_COLORS = ["#FFB4A2", "#FFD166", "#8ED1C6", "#B9C2FD", "#F9B4D6", "#A8DC98"]
+MODULE_COLORS = ["#D3F26B", "#7FE3D5", "#A7BAFF", "#E6F7A8", "#B8EEE6", "#CCD7FF"]  # оттенки слоёв логотипа stack.
 
 # Короткое описание модулей: (курс, номер модуля) -> (рус, қаз)
 MODULE_DESC = {

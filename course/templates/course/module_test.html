@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ ct.module_test }} · {{ module_title }} · {{ t.site_title }}{% endblock %}
-{% block topstyle %}style="background: {{ color }}"{% endblock %}
+{% block topstyle %}style="--c: {{ color }}"{% endblock %}
 {% block band %}
 <div class="band wrap">
   <a class="back" href="{% url 'course_module' course.slug module.number %}">← {{ module_title }}</a>
@@ -14,7 +14,7 @@
 <form method="post" class="mtest" id="mtest" novalidate>{% csrf_token %}
   {% for q in questions %}
   <fieldset class="panel mtest__q" id="{{ q.name }}">
-    <legend class="mtest__legend"><span class="mtest__num" style="background: {{ color }}">{{ q.num }}</span> {{ q.text }}</legend>
+    <legend class="mtest__legend"><span class="mtest__num" style="--c: {{ color }}">{{ q.num }}</span> {{ q.text }}</legend>
     {% if q.code %}<pre class="code"><code>{{ q.code }}</code></pre>{% endif %}
     <div class="quiz">
       {% for o in q.options %}

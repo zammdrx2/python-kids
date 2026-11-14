@@ -3,7 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#F4F6FA">
+  <meta name="theme-color" content="#F5F6FB" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0E1233" media="(prefers-color-scheme: dark)">
+  <script>
+    /* тема ставится до отрисовки, чтобы страница не мигала: выбор ученика, иначе как в системе */
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem("theme"); } catch (e) {}
+      if (t !== "dark" && t !== "light") t = window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      document.documentElement.setAttribute("data-theme", t);
+    })();
+  </script>
   <meta name="description" content="{% block description %}{{ t.meta_description }}{% endblock %}">
   <link rel="canonical" href="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
   <meta property="og:type" content="website">
@@ -21,9 +31,8 @@
   <link rel="icon" href="{% static 'img/stack-icon-32.png' %}?v={{ v }}" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="{% static 'img/stack-apple-touch.png' %}?v={{ v }}">
   <title>{% block title %}{{ t.meta_title }}{% endblock %}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="preload" href="{% static 'fonts/onest-cyrillic-wght-normal.woff2' %}" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="{% static 'fonts/unbounded-cyrillic-wght-normal.woff2' %}" as="font" type="font/woff2" crossorigin>
   {% block head %}{% endblock %}
   <link rel="stylesheet" href="{% static 'css/style.css' %}?v={{ v }}">
 </head>
@@ -41,7 +50,7 @@
   <a class="skip" href="#content">{{ t.skip }}</a>
   <div class="top" {% block topstyle %}{% endblock %}>
     <header class="topbar wrap">
-      <a class="brand" href="{% url 'home' %}" aria-label="stack. - {{ t.brand }}"><img class="brand__mark" src="{% static 'img/logo-mark.png' %}" alt="" width="36" height="34"><img class="brand__word" src="{% static 'img/logo-word.png' %}" alt="stack." width="133" height="29"></a>
+      <a class="brand" href="{% url 'home' %}" aria-label="stack. - {{ t.brand }}"><img class="brand__mark" src="{% static 'img/logo-mark.png' %}" alt="" width="36" height="34"><img class="brand__word brand__word--light" src="{% static 'img/logo-word.png' %}" alt="stack." width="133" height="29"><img class="brand__word brand__word--dark" src="{% static 'img/logo-word-light.png' %}" alt="stack." width="133" height="29"></a>
       <nav class="nav" aria-label="{{ t.lessons }}">
         {% if is_teacher %}<a href="{% url 'teacher_home' %}">{{ t.teacher_cabinet }}</a>
         {% elif user.is_authenticated %}<a href="{% url 'join_class' %}">{{ t.my_class }}</a>{% endif %}
@@ -53,6 +62,7 @@
           <button name="lang" value="ru" class="{% if lang == 'ru' %}is-active{% endif %}" aria-pressed="{% if lang == 'ru' %}true{% else %}false{% endif %}">RU</button>
           <button name="lang" value="kk" class="{% if lang == 'kk' %}is-active{% endif %}" aria-pressed="{% if lang == 'kk' %}true{% else %}false{% endif %}">ҚАЗ</button>
         </form>
+        <button class="theme-toggle" type="button" data-theme-toggle aria-label="{{ t.theme_toggle }}" title="{{ t.theme_toggle }}"><span class="theme-toggle__moon" aria-hidden="true">🌙</span><span class="theme-toggle__sun" aria-hidden="true">☀️</span></button>
         {% if user.is_authenticated %}
           <a class="pill pill--hero" href="{% url 'hero' %}" title="{{ t.my_hero }}">{{ user.first_name|default:user.username }}{% if points or points == 0 %} · ★ {{ points }}{% endif %}{% if streak_days %} · <span title="{{ t.streak_title }}">🔥 {{ streak_days }}</span>{% endif %}</a>
           <form method="post" action="{% url 'logout' %}" class="inline">{% csrf_token %}
@@ -69,6 +79,15 @@
 
   {% for m in messages %}<div class="wrap"><div class="flash">{{ m }}</div></div>{% endfor %}
   <main id="content" class="wrap main">{% block content %}{% endblock %}</main>
+  <script>
+    document.querySelectorAll("[data-theme-toggle]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var t = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+        document.documentElement.setAttribute("data-theme", t);
+        try { localStorage.setItem("theme", t); } catch (e) {}
+      });
+    });
+  </script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

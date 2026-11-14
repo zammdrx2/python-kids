@@ -18,7 +18,7 @@
 
 {% if next_test %}
 <a class="continue" href="{% url 'course_module_test' course.slug next_test.module.number %}">
-  <span class="continue__num" style="background: {{ next_test.color }}">?</span>
+  <span class="continue__num" style="--c: {{ next_test.color }}">?</span>
   <span class="continue__text">
     <span class="continue__meta">{{ ct.test_take }} {{ next_test.module.number }}</span>
     <span class="continue__title">{{ next_test.title }}</span>
@@ -27,7 +27,7 @@
 </a>
 {% elif need_pay %}
 <a class="continue" href="{% url 'pay' %}">
-  <span class="continue__num" style="background: #FFD166">₸</span>
+  <span class="continue__num" style="--c: #D3F26B">₸</span>
   <span class="continue__text">
     <span class="continue__meta">{{ ct.locked_paid }}</span>
     <span class="continue__title">{{ ct.locked_paid_msg }}</span>
@@ -36,7 +36,7 @@
 </a>
 {% elif next_item %}
 <a class="continue" href="{% url 'course_lesson' course.slug next_item.lesson.number %}">
-  <span class="continue__num" style="background: {{ next_item.color }}">{{ next_item.lesson.number|stringformat:"02d" }}</span>
+  <span class="continue__num" style="--c: {{ next_item.color }}">{{ next_item.lesson.number|stringformat:"02d" }}</span>
   <span class="continue__text">
     <span class="continue__meta">{% if started %}{{ ct.continue_from }}{% else %}{{ ct.start_from }}{% endif %}</span>
     <span class="continue__title">{{ next_item.title }}</span>
@@ -49,7 +49,7 @@
 
 <div class="tiles">
   {% for m in modules %}
-  <a class="tile{% if m.locked %} tile--locked{% endif %}" href="{% url 'course_module' course.slug m.module.number %}" style="background: {{ m.color }}">
+  <a class="tile{% if m.locked %} tile--locked{% endif %}" href="{% url 'course_module' course.slug m.module.number %}" style="--c: {{ m.color }}">
     <span class="tile__num">{{ m.module.number|stringformat:"02d" }}</span>
     <span class="tile__title">{{ m.title }}</span>
     <span class="tile__desc">{{ m.desc }}</span>

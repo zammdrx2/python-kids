@@ -5,7 +5,7 @@
 <p class="lead-text">{{ ct.choose_lead }}</p>
 <div class="courses">
   {% for c in courses %}
-  <a class="course-card" href="{% url 'course_home' c.course.slug %}" style="background: {{ c.course.color }}">
+  <a class="course-card" href="{% url 'course_home' c.course.slug %}" style="--c: {{ c.course.color }}">
     <span class="course-card__icon" aria-hidden="true">{% if c.course.kind == 'web' %}&lt;/&gt;{% elif c.course.kind == 'js' %}JS{% elif c.course.kind == 'sql' %}SQL{% elif c.course.kind == 'word' %}W{% elif c.course.kind == 'excel' %}X{% elif c.course.kind == 'pptx' %}P{% else %}Py{% endif %}</span>
     <span class="course-card__title">{{ c.title }}</span>
     <span class="course-card__desc">{{ c.desc }}</span>

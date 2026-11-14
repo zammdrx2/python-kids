@@ -9,7 +9,7 @@
 {% if summary %}
 <div class="classes">
   {% for s in summary %}
-  <div class="class-card class-card--static" style="background: {{ s.course.color }}">
+  <div class="class-card class-card--static" style="--c: {{ s.course.color }}">
     <span class="class-card__name">{{ s.title }}{% if s.cert %} 🏅{% endif %}</span>
     <span class="class-card__meta">{{ s.solved }} / {{ s.total }} · {{ s.percent }}%</span>
     <span class="meter" aria-hidden="true"><span style="width: {{ s.percent }}%"></span></span>
