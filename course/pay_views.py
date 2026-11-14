@@ -62,11 +62,18 @@ def payments(request):
         users = users.filter(subscription__paid_until__gte=today)
     elif show == "expired":
         users = users.filter(subscription__paid_until__lt=today)
+    elif show == "myclass":
+        users = users.filter(memberships__classroom__teacher__is_staff=True).distinct()
+    elif show == "noclass":
+        users = users.filter(memberships__isnull=True)
     elif show == "free":
         users = users.filter(Q(subscription__free=True) | Q(memberships__classroom__free_access=True)).distinct()
     users = users.order_by("-last_login", "-date_joined")[:100]
     in_free_class = set(Membership.objects.filter(classroom__free_access=True).values_list("student_id", flat=True))
     in_my_class = set(Membership.objects.filter(classroom__teacher__is_staff=True).values_list("student_id", flat=True))
+    class_names = {}
+    for sid, name in Membership.objects.filter(student__in=[u.id for u in users]).values_list("student_id", "classroom__name"):
+        class_names.setdefault(sid, []).append(name)
     rows = []
     for u in users:
         s = getattr(u, "subscription", None)
@@ -76,6 +83,7 @@ def payments(request):
         price = settings.CLASS_PRICE if u.id in in_my_class else settings.PRICE_MONTH
         rows.append({"user": u, "until": until, "state": state, "free": free, "free_class": u.id in in_free_class,
                      "price": price, "price_fmt": services.fmt_price(price), "my_class": u.id in in_my_class,
+                     "classes": ", ".join(class_names.get(u.id, [])),
                      "soon": state == "active" and (until - today).days <= 3})
     stats = {
         "active": Subscription.objects.filter(paid_until__gte=today).count(),

@@ -547,3 +547,22 @@ class ClassPriceTests(TestCase):
         self.assertContains(self.client.get(reverse("pay")), "7 990")
         self.client.login(username="outside", password="pass12345")
         self.assertContains(self.client.get(reverse("pay")), "14 990")
+
+
+class PaymentsClassFilterTests(TestCase):
+    def test_class_shown_and_filters(self):
+        from .models import Classroom, Membership
+        U = get_user_model()
+        adm = U.objects.create_user("adm3", password="pass12345", is_staff=True)
+        a = U.objects.create_user("member1", password="pass12345")
+        U.objects.create_user("loner1", password="pass12345")
+        Membership.objects.create(classroom=Classroom.objects.create(teacher=adm, name="КИ 202"), student=a)
+        self.client.login(username="adm3", password="pass12345")
+        r = self.client.get(reverse("payments"), {"show": "myclass"})
+        self.assertContains(r, "@member1")
+        self.assertContains(r, "КИ 202")
+        self.assertContains(r, "7 990")
+        self.assertNotContains(r, "@loner1")
+        r = self.client.get(reverse("payments"), {"show": "noclass"})
+        self.assertContains(r, "@loner1")
+        self.assertNotContains(r, "@member1")

@@ -19,6 +19,8 @@
   <a href="?show=active&q={{ q|urlencode }}" class="{% if show == 'active' %}is-on{% endif %}">{{ ct.paid }}</a>
   <a href="?show=expired&q={{ q|urlencode }}" class="{% if show == 'expired' %}is-on{% endif %}">{{ ct.expired }}</a>
   <a href="?show=free&q={{ q|urlencode }}" class="{% if show == 'free' %}is-on{% endif %}">{{ ct.free }}</a>
+  <a href="?show=myclass&q={{ q|urlencode }}" class="{% if show == 'myclass' %}is-on{% endif %}">{{ ct.in_my_classes }}</a>
+  <a href="?show=noclass&q={{ q|urlencode }}" class="{% if show == 'noclass' %}is-on{% endif %}">{{ ct.no_class }}</a>
 </p>
 
 <div class="panel paylist">
@@ -27,6 +29,7 @@
     <div class="payrow__who">
       <b>{{ r.user.get_full_name|default:r.user.username }}</b>
       <span class="muted">@{{ r.user.username }}{% if r.user.last_login %} · {{ ct.last_active }}: {{ r.user.last_login|date:"d.m H:i" }}{% endif %}</span>
+      <span class="payrow__class">{% if r.classes %}{{ ct.class_word }}: {{ r.classes }}{% else %}{{ ct.no_class }}{% endif %}</span>
     </div>
     {% if r.free %}<span class="paybadge paybadge--free">{{ ct.free_badge }}</span>
     {% elif r.free_class %}<span class="paybadge paybadge--free">{{ ct.free_class_badge }}</span>
