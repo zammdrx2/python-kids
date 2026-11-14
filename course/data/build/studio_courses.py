@@ -1,15 +1,18 @@
 """
-Курсы без автопроверки: Kodu Game Lab и Thunkable.
+Курсы без автопроверки: Kodu Game Lab, Thunkable, Scratch, Figma, Tilda.
 Только уроки (теория, пошаговые инструкции, задание на урок) - работу ученика
 учитель проверяет вживую на занятии.
 
 Запуск:  python course/data/build/studio_courses.py
-Пишет course/data/kodu.json и course/data/thunkable.json.
+Пишет course/data/<slug>.json для каждого курса (Scratch, Figma, Tilda - в studio_more.py).
 """
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 OUT = Path(__file__).resolve().parents[1]
 
@@ -431,8 +434,10 @@ THUNK = {
     ],
 }
 
+from studio_more import SCRATCH, FIGMA, TILDA  # noqa: E402
+
 if __name__ == "__main__":
-    for name, data in (("kodu", KODU), ("thunkable", THUNK)):
+    for name, data in (("kodu", KODU), ("thunkable", THUNK), ("scratch", SCRATCH), ("figma", FIGMA), ("tilda", TILDA)):
         lessons = [l for m in data["modules"] for l in m["lessons"]]
         assert [l["number"] for l in lessons] == list(range(1, 13)), name
         (OUT / f"{name}.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")

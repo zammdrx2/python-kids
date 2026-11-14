@@ -21,6 +21,9 @@ class Course(models.Model):
         PPTX = "pptx", "PowerPoint"
         KODU = "kodu", "Kodu Game Lab (уроки без проверки)"
         THUNKABLE = "thunkable", "Thunkable (уроки без проверки)"
+        SCRATCH = "scratch", "Scratch (уроки без проверки)"
+        FIGMA = "figma", "Figma (уроки без проверки)"
+        TILDA = "tilda", "Tilda (уроки без проверки)"
 
     slug = models.SlugField("Адрес", unique=True)
     kind = models.CharField("Тип", max_length=10, choices=Kind.choices, default=Kind.PYTHON)

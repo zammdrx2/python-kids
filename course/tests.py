@@ -716,7 +716,7 @@ class StreakRatingTests(TestCase):
 
 
 class StudioCourseTests(TestCase):
-    """Kodu и Thunkable: только уроки, без заданий - следующий урок открыт сразу."""
+    """Kodu, Thunkable, Scratch, Figma, Tilda: только уроки, без заданий - следующий урок открыт сразу."""
 
     @classmethod
     def setUpTestData(cls):
@@ -727,7 +727,7 @@ class StudioCourseTests(TestCase):
 
     def test_lessons_open_and_render(self):
         self.client.login(username="studio", password="pass12345")
-        for slug in ("kodu", "thunkable"):
+        for slug in ("kodu", "thunkable", "scratch", "figma", "tilda"):
             r = self.client.get(reverse("course_lesson", args=[slug, 5]))
             self.assertEqual(r.status_code, 200)
             self.assertContains(r, "theory__steps")

@@ -6,7 +6,7 @@
 <div class="courses">
   {% for c in courses %}
   <a class="course-card" href="{% url 'course_home' c.course.slug %}" style="--c: {{ c.course.color }}">
-    <span class="course-card__icon" aria-hidden="true">{% if c.course.kind == 'web' %}&lt;/&gt;{% elif c.course.kind == 'js' %}JS{% elif c.course.kind == 'sql' %}SQL{% elif c.course.kind == 'word' %}W{% elif c.course.kind == 'excel' %}X{% elif c.course.kind == 'pptx' %}P{% elif c.course.kind == 'kodu' %}🎮{% elif c.course.kind == 'thunkable' %}📱{% else %}Py{% endif %}</span>
+    <span class="course-card__icon" aria-hidden="true">{% if c.course.kind == 'web' %}&lt;/&gt;{% elif c.course.kind == 'js' %}JS{% elif c.course.kind == 'sql' %}SQL{% elif c.course.kind == 'word' %}W{% elif c.course.kind == 'excel' %}X{% elif c.course.kind == 'pptx' %}P{% elif c.course.kind == 'kodu' %}🎮{% elif c.course.kind == 'thunkable' %}📱{% elif c.course.kind == 'scratch' %}🐱{% elif c.course.kind == 'figma' %}🎨{% elif c.course.kind == 'tilda' %}🌐{% else %}Py{% endif %}</span>
     <span class="course-card__title">{{ c.title }}</span>
     <span class="course-card__desc">{{ c.desc }}</span>
     <span class="course-card__meta">{{ c.lessons }} {{ c.lessons_word }}{% if user.is_authenticated and c.practice %} · {{ c.done }} {{ ct.done_count }}{% endif %}{% if c.complete %} · 🏅 {{ ct.cert_badge }}{% endif %}</span>
