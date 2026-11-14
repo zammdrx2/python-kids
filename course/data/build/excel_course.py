@@ -371,7 +371,7 @@ M4 = module(4, ("Диаграммы и проекты", "Диаграммала�
 COURSE = {"slug": "excel", "kind": "excel", "title": ["Excel", "Excel"],
           "desc": ["12 уроков: таблицы, формулы, функции и диаграммы в Microsoft Excel",
                    "12 сабақ: Microsoft Excel-дегі кестелер, формулалар, функциялар және диаграммалар"],
-          "color": "#A8DC98", "order": 6}
+          "color": "#E6F7A8", "order": 21}
 
 if __name__ == "__main__":
     build(COURSE, [M1, M2, M3, M4], "excel", "excel.json")

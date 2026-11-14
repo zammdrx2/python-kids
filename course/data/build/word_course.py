@@ -386,7 +386,7 @@ M4 = module(4, ("Документ как у профи", "Кәсіби құжа�
 COURSE = {"slug": "word", "kind": "word", "title": ["Word", "Word"],
           "desc": ["12 уроков: оформляем документы, таблицы, рефераты и буклеты в Microsoft Word",
                    "12 сабақ: Microsoft Word-та құжаттарды, кестелерді, рефераттар мен буклеттерді безендіреміз"],
-          "color": "#9FC9F3", "order": 5}
+          "color": "#CCD7FF", "order": 20}
 
 if __name__ == "__main__":
     build(COURSE, [M1, M2, M3, M4], "word", "word.json")

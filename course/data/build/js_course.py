@@ -257,7 +257,7 @@ MODULES = [
 
 COURSE = {"slug": "js", "kind": "js", "title": ["JavaScript", "JavaScript"],
           "desc": ["24 урока: язык, на котором работают сайты и браузерные игры", "24 сабақ: сайттар мен браузер ойындары жұмыс істейтін тіл"],
-          "color": "#B9C2FD", "order": 3}
+          "color": "#A7BAFF", "order": 3}
 
 
 def main():

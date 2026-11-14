@@ -354,7 +354,7 @@ M4 = module(4, ("Выступаем с презентацией", "Презен�
 COURSE = {"slug": "powerpoint", "kind": "pptx", "title": ["PowerPoint", "PowerPoint"],
           "desc": ["12 уроков: делаем яркие презентации и учимся выступать в Microsoft PowerPoint",
                    "12 сабақ: Microsoft PowerPoint-та жарқын презентациялар жасап, сөз сөйлеуді үйренеміз"],
-          "color": "#F9B4D6", "order": 7}
+          "color": "#FFD3C2", "order": 22}
 
 if __name__ == "__main__":
     build(COURSE, [M1, M2, M3, M4], "pptx", "powerpoint.json")

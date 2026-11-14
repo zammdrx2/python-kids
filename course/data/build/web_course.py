@@ -408,7 +408,7 @@ MODULES = [
 
 COURSE = {"slug": "web", "kind": "web", "title": ["HTML и CSS", "HTML және CSS"],
           "desc": ["24 урока: от первой страницы до своего сайта", "24 сабақ: алғашқы беттен өз сайтыңа дейін"],
-          "color": "#FFB4A2", "order": 2}
+          "color": "#7FE3D5", "order": 2}
 
 if __name__ == "__main__":
     import sys
