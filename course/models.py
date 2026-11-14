@@ -19,6 +19,8 @@ class Course(models.Model):
         WORD = "word", "Word"
         EXCEL = "excel", "Excel"
         PPTX = "pptx", "PowerPoint"
+        KODU = "kodu", "Kodu Game Lab (уроки без проверки)"
+        THUNKABLE = "thunkable", "Thunkable (уроки без проверки)"
 
     slug = models.SlugField("Адрес", unique=True)
     kind = models.CharField("Тип", max_length=10, choices=Kind.choices, default=Kind.PYTHON)
@@ -122,12 +124,18 @@ class Lesson(models.Model):
 
     def theory_blocks(self, lang):
         blocks = []
+        def pick(pair):
+            ru, kk = pair
+            return kk if lang == "kk" and kk else ru
+
         for b in self.theory:
             if "code" in b:
                 blocks.append({"code": b["code"]})
-            else:
-                ru, kk = b["p"]
-                blocks.append({"p": kk if lang == "kk" and kk else ru})
+            elif "ol" in b:  # пошаговый список
+                blocks.append({"ol": [pick(i) for i in b["ol"]]})
+            else:  # p - абзац, h - подзаголовок, tip - совет, task - задание на уроке
+                kind = next(k for k in ("p", "h", "tip", "task") if k in b)
+                blocks.append({kind: pick(b[kind])})
         return blocks
 
 

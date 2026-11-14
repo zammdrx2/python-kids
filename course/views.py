@@ -130,6 +130,7 @@ def home(request):
                    progress[i]["solved"] >= progress[i]["total"])
         tests_ok = set(c.modules.filter(id__in=with_test).values_list("id", flat=True)) <= passed
         courses.append({"course": c, "title": c.title(lang), "desc": c.desc(lang), "lessons": len(ids), "done": done,
+                        "practice": c.lessons.filter(tasks__isnull=False).exists(),
                         "lessons_word": lessons_word(len(ids), lang),
                         "complete": bool(ids) and done == len(ids) and tests_ok})
     return render(request, "course/courses.html", {

@@ -183,7 +183,8 @@ def lesson_locks(user, progress=None) -> dict[int, tuple | None]:
                 lock = ("test", with_test[prev_module])
         locks[lesson.id] = lock
         p = progress.get(lesson.id, {"solved": 0, "total": 0})
-        prev_done = user.is_authenticated and p["total"] > 0 and p["solved"] >= p["total"]
+        # урок без заданий (курсы Kodu, Thunkable - проверяет учитель на занятии) не держит следующий
+        prev_done = user.is_authenticated and (p["total"] == 0 or p["solved"] >= p["total"])
         prev_module = lesson.module_id
     return locks
 

@@ -23,9 +23,15 @@
   <section class="panel step-panel" id="step-0" aria-labelledby="theory-h">
     <h2 id="theory-h" class="h2">{{ ct.theory }}</h2>
     {% for b in theory %}
-      {% if b.code %}<pre class="code{% if course.kind == 'python' %} js-hl{% endif %}"><code>{{ b.code }}</code></pre>{% else %}<p>{{ b.p|linebreaksbr }}</p>{% endif %}
+      {% if b.code %}<pre class="code{% if course.kind == 'python' %} js-hl{% endif %}"><code>{{ b.code }}</code></pre>
+      {% elif b.h %}<h3 class="h3 theory__h">{{ b.h }}</h3>
+      {% elif b.ol %}<ol class="theory__steps">{% for s in b.ol %}<li>{{ s }}</li>{% endfor %}</ol>
+      {% elif b.tip %}<p class="theory__tip">💡 {{ b.tip }}</p>
+      {% elif b.task %}<div class="theory__task"><p class="theory__task-title">{{ ct.class_task }}</p><p>{{ b.task }}</p><p class="theory__task-note">{{ ct.class_task_note }}</p></div>
+      {% else %}<p>{{ b.p|linebreaksbr }}</p>{% endif %}
     {% endfor %}
-    {% if tasks %}<div class="panel__foot"><a class="btn" href="#step-1">{{ ct.to_tasks }}</a></div>{% endif %}
+    {% if tasks %}<div class="panel__foot"><a class="btn" href="#step-1">{{ ct.to_tasks }}</a></div>
+    {% elif next %}<div class="panel__foot"><a class="btn" href="{% url 'course_lesson' course.slug next.number %}">{{ ct.next_lesson }}: {{ next_title }} →</a></div>{% endif %}
   </section>
   {% endif %}
 

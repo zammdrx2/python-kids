@@ -713,3 +713,32 @@ class StreakRatingTests(TestCase):
         self.assertNotContains(r, "Бота")
         self.client.login(username="rt", password="pass12345")  # учитель видит свой класс
         self.assertContains(self.client.get(reverse("rating"), {"class": self.room.pk}), "Бота")
+
+
+class StudioCourseTests(TestCase):
+    """Kodu и Thunkable: только уроки, без заданий - следующий урок открыт сразу."""
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command("load_course", verbosity=0)
+        cls.kid = get_user_model().objects.create_user("studio", password="pass12345")
+        from .services import extend_subscription
+        extend_subscription(cls.kid, 1)
+
+    def test_lessons_open_and_render(self):
+        self.client.login(username="studio", password="pass12345")
+        for slug in ("kodu", "thunkable"):
+            r = self.client.get(reverse("course_lesson", args=[slug, 5]))
+            self.assertEqual(r.status_code, 200)
+            self.assertContains(r, "theory__steps")
+            self.assertContains(r, "Задание на уроке")
+            self.assertContains(r, reverse("course_lesson", args=[slug, 6]))
+            self.assertEqual(self.client.get(reverse("course_home", args=[slug])).status_code, 200)
+
+    def test_paid_lock_still_applies(self):
+        U = get_user_model()
+        U.objects.create_user("free_studio", password="pass12345")
+        self.client.login(username="free_studio", password="pass12345")
+        self.assertEqual(self.client.get(reverse("course_lesson", args=["kodu", 2])).status_code, 200)
+        r = self.client.get(reverse("course_lesson", args=["kodu", 3]))
+        self.assertNotContains(r, "theory__steps", status_code=r.status_code)

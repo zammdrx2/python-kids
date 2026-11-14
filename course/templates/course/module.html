@@ -35,7 +35,7 @@
         <span class="lesson-card__title">{{ l.title }}{% if l.lesson.is_project %} <span class="tag">{{ ct.project }}</span>{% endif %}</span>
         <span class="lesson-card__goal">{{ l.goal }}</span>
       </span>
-      <span class="lesson-card__count">{{ l.progress.solved }} / {{ l.progress.total }}<span class="sr"> {{ ct.tasks_of }}</span></span>
+      {% if l.progress.total %}<span class="lesson-card__count">{{ l.progress.solved }} / {{ l.progress.total }}<span class="sr"> {{ ct.tasks_of }}</span></span>{% endif %}
     </a>
     {% endif %}
   </li>
