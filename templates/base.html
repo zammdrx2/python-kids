@@ -7,7 +7,7 @@
   <meta name="description" content="{% block description %}{{ t.meta_description }}{% endblock %}">
   <link rel="canonical" href="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
   <meta property="og:type" content="website">
-  <meta property="og:site_name" content="pythonkids">
+  <meta property="og:site_name" content="stack.">
   <meta property="og:locale" content="{% if lang == 'kk' %}kk_KZ{% else %}ru_RU{% endif %}">
   <meta property="og:title" content="{% block og_title %}{{ t.meta_title }}{% endblock %}">
   <meta property="og:description" content="{% block og_description %}{{ t.meta_og_description }}{% endblock %}">
@@ -41,7 +41,7 @@
   <a class="skip" href="#content">{{ t.skip }}</a>
   <div class="top" {% block topstyle %}{% endblock %}>
     <header class="topbar wrap">
-      <a class="brand" href="{% url 'home' %}">python<span>kids</span></a>
+      <a class="brand" href="{% url 'home' %}" aria-label="stack. - {{ t.brand }}"><img class="brand__mark" src="{% static 'img/logo-mark.png' %}" alt="" width="36" height="34"><img class="brand__word" src="{% static 'img/logo-word.png' %}" alt="stack." width="133" height="29"></a>
       <nav class="nav" aria-label="{{ t.lessons }}">
         {% if is_teacher %}<a href="{% url 'teacher_home' %}">{{ t.teacher_cabinet }}</a>
         {% elif user.is_authenticated %}<a href="{% url 'join_class' %}">{{ t.my_class }}</a>{% endif %}

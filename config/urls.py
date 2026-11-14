@@ -3,8 +3,8 @@ from django.templatetags.static import static
 from django.urls import include, path
 from django.views.generic import RedirectView
 
-admin.site.site_header = "Python для детей - панель преподавателя"
-admin.site.site_title = "Python для детей"
+admin.site.site_header = "stack. - панель преподавателя"
+admin.site.site_title = "stack."
 
 urlpatterns = [
     path("admin/", admin.site.urls),

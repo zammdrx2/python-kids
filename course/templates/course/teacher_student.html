@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ student.get_full_name|default:student.username }} · {{ room.name }}{% endblock %}
+{% block title %}{{ student.get_full_name|default:student.username }} · {{ room.name }} · {{ t.site_title }}{% endblock %}
 {% block content %}
 <a class="back" href="{% url 'teacher_class' room.pk %}">← {{ room.name }}</a>
 <h1 class="h1">{{ student.get_full_name|default:student.username }}</h1>

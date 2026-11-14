@@ -1,5 +1,5 @@
 #!/bin/bash
-# Настройка сайта «Python для детей» на PythonAnywhere.
+# Настройка сайта «stack.» на PythonAnywhere.
 # Запуск в Bash-консоли PythonAnywhere (из домашней папки):
 #   git clone https://github.com/<логин>/python-kids.git
 #   bash python-kids/deploy/pythonanywhere_setup.sh

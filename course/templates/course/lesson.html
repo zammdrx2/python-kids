@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}{{ ct.lesson }} {{ lesson.number }}. {{ title }}{% endblock %}
+{% block title %}{{ ct.lesson }} {{ lesson.number }}. {{ title }} · {{ t.site_title }}{% endblock %}
 {% block head %}<link rel="stylesheet" href="{% static 'vendor/codemirror/codemirror.css' %}">{% endblock %}
 {% block topstyle %}style="background: {{ color }}"{% endblock %}
 {% block band %}

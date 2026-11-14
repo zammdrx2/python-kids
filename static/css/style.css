@@ -81,8 +81,11 @@ p { margin: 0 0 12px; }
 
 /* Шапка */
 .topbar { display: flex; align-items: center; gap: 16px 20px; flex-wrap: wrap; padding-top: 20px; padding-bottom: 20px; }
-.brand { font: 800 22px var(--font); text-decoration: none; }
-.brand span { color: var(--brand); }
+.brand { display: inline-flex; align-items: center; gap: 9px; text-decoration: none; }
+.brand img { display: block; height: auto; }
+.brand__mark { width: 36px; }
+.brand__word { width: 133px; }
+@media (max-width: 600px) { .brand__word { width: 104px; } .brand__mark { width: 30px; } }
 .nav { margin-left: auto; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-weight: 500; }
 .nav > a { text-decoration: none; }
 .lang { display: flex; margin: 0; background: rgba(255,255,255,.7); border-radius: 999px; padding: 3px; }
