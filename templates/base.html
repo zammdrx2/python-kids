@@ -53,7 +53,7 @@
           <button name="lang" value="kk" class="{% if lang == 'kk' %}is-active{% endif %}" aria-pressed="{% if lang == 'kk' %}true{% else %}false{% endif %}">ҚАЗ</button>
         </form>
         {% if user.is_authenticated %}
-          <span class="pill">{{ user.first_name|default:user.username }}{% if points or points == 0 %} · {{ points }} {{ ct.points_short }}{% endif %}</span>
+          <a class="pill pill--hero" href="{% url 'hero' %}" title="{{ t.my_hero }}">{{ user.first_name|default:user.username }}{% if points or points == 0 %} · ★ {{ points }}{% endif %}</a>
           <form method="post" action="{% url 'logout' %}" class="inline">{% csrf_token %}
             <button class="linkbtn" type="submit">{{ t.logout }}</button>
           </form>

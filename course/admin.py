@@ -1,7 +1,7 @@
 from django.contrib import admin
 
 from .models import (Certificate, Classroom, Course, Lesson, Membership, Module, ModuleTestResult, Payment,
-                     Submission, Subscription, Task)
+                     Submission, Subscription, Task, Hero, Purchase)
 
 
 class LessonInline(admin.TabularInline):
@@ -84,3 +84,15 @@ class SubscriptionAdmin(admin.ModelAdmin):
 class PaymentAdmin(admin.ModelAdmin):
     list_display = ("user", "amount", "months", "paid_until", "created_at", "created_by")
     search_fields = ("user__username", "user__first_name", "user__last_name")
+
+
+@admin.register(Hero)
+class HeroAdmin(admin.ModelAdmin):
+    list_display = ("user", "gender", "hair", "top", "hat", "weapon", "bg", "updated_at")
+    search_fields = ("user__username",)
+
+
+@admin.register(Purchase)
+class PurchaseAdmin(admin.ModelAdmin):
+    list_display = ("user", "item", "price", "created_at")
+    search_fields = ("user__username", "item")

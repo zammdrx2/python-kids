@@ -566,3 +566,50 @@ class PaymentsClassFilterTests(TestCase):
         r = self.client.get(reverse("payments"), {"show": "noclass"})
         self.assertContains(r, "@loner1")
         self.assertNotContains(r, "@member1")
+
+
+class HeroTests(TestCase):
+    """Герой: баллы тратятся на вещи, нельзя купить без баллов и надеть некупленное."""
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command("load_course", verbosity=0)
+        cls.kid = get_user_model().objects.create_user("herokid", password="pass12345")
+        for t in Task.objects.filter(lesson__course__slug="python", lesson__number__in=[1, 2]):
+            record_submission(cls.kid, t, "print(1)", len(t.tests), len(t.tests))
+
+    def setUp(self):
+        self.client.login(username="herokid", password="pass12345")
+
+    def test_page_and_buying(self):
+        from .services import points_earned, user_points
+        from .models import Purchase
+        earned = points_earned(self.kid)
+        self.assertGreater(earned, 100)
+        r = self.client.get(reverse("hero"))
+        self.assertContains(r, "<svg")
+        self.client.post(reverse("hero"), {"action": "buy", "item": "weapon_wood", "slot": "weapon"})
+        self.assertEqual(user_points(self.kid), earned - 100)
+        self.assertEqual(self.kid.hero.weapon, "weapon_wood")
+        # повторная покупка не списывает баллы
+        self.client.post(reverse("hero"), {"action": "buy", "item": "weapon_wood"})
+        self.assertEqual(Purchase.objects.filter(user=self.kid).count(), 1)
+        # дорогое - нельзя
+        self.client.post(reverse("hero"), {"action": "buy", "item": "weapon_laser"})
+        self.kid.hero.refresh_from_db()
+        self.assertEqual(self.kid.hero.weapon, "weapon_wood")
+        self.assertFalse(Purchase.objects.filter(user=self.kid, item="weapon_laser").exists())
+        # в шапке сайта - баланс
+        self.assertContains(self.client.get(reverse("hero")), f"★ {earned - 100}")
+
+    def test_cannot_wear_unowned_and_gender_switch(self):
+        self.client.post(reverse("hero"), {"action": "wear", "item": "hat_crown"})
+        self.client.post(reverse("hero"), {"action": "look", "gender": "f", "eye": "blue", "skin": "nope"})
+        from .models import Hero
+        h = Hero.objects.get(user=self.kid)
+        self.assertEqual(h.hat, "hat_none")
+        self.assertEqual((h.gender, h.hair, h.eye, h.skin), ("f", "hair_long", "blue", "light"))
+
+    def test_login_required(self):
+        self.client.logout()
+        self.assertEqual(self.client.get(reverse("hero")).status_code, 302)

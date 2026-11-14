@@ -224,10 +224,59 @@ def record_module_test(user, module, score: int) -> ModuleTestResult:
     return res
 
 
-def user_points(user) -> int:
+def points_earned(user) -> int:
+    """Все баллы, заработанные за решённые задания."""
     if not user.is_authenticated:
         return 0
     return Submission.objects.filter(user=user, solved=True).aggregate(s=Sum("task__points"))["s"] or 0
+
+
+def points_spent(user) -> int:
+    from .models import Purchase
+    if not user.is_authenticated:
+        return 0
+    return Purchase.objects.filter(user=user).aggregate(s=Sum("price"))["s"] or 0
+
+
+def user_points(user) -> int:
+    """Баллы, которые можно потратить в магазине героя (заработано минус потрачено)."""
+    return points_earned(user) - points_spent(user)
+
+
+def get_hero(user):
+    from . import avatar
+    from .models import Hero
+    hero, created = Hero.objects.get_or_create(user=user)
+    return hero
+
+
+class NotEnoughPoints(Exception):
+    pass
+
+
+@transaction.atomic
+def buy_item(user, item_id):
+    """Покупка вещи: баллы списываются, вещь сразу надевается."""
+    from . import avatar
+    from .models import Hero, Purchase
+    if item_id not in avatar.ITEMS:
+        raise ValueError(item_id)
+    slot, price = avatar.ITEMS[item_id][:2]
+    get_user_model().objects.select_for_update().get(pk=user.pk)  # одна покупка за раз
+    if price and not Purchase.objects.filter(user=user, item=item_id).exists():
+        if user_points(user) < price:
+            raise NotEnoughPoints
+        Purchase.objects.create(user=user, item=item_id, price=price)
+    hero = get_hero(user)
+    setattr(hero, slot, item_id)
+    hero.save()
+    return hero
+
+
+def owned_items(user) -> set:
+    from . import avatar
+    from .models import Purchase
+    return avatar.free_items() | set(Purchase.objects.filter(user=user).values_list("item", flat=True))
 
 
 TEACHERS_GROUP = "Учителя"

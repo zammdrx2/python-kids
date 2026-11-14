@@ -26,6 +26,7 @@ TEXTS = {
     "meta_og_description": {"ru": "Python, HTML, JavaScript, SQL, Word, Excel и PowerPoint: пиши код в браузере, задания проверяются сразу.", "kk": "Python, HTML, JavaScript, SQL, Word, Excel және PowerPoint: кодты браузерде жаз, тапсырмалар бірден тексеріледі."},
     "admin": {"ru": "Админка", "kk": "Әкімші панелі"},
     "payments": {"ru": "Оплаты", "kk": "Төлемдер"},
+    "my_hero": {"ru": "Мой герой", "kk": "Менің батырым"},
     "access": {"ru": "Доступ", "kk": "Қолжетімділік"},
     "teacher_cabinet": {"ru": "Кабинет учителя", "kk": "Мұғалім кабинеті"},
     "my_class": {"ru": "Мой класс", "kk": "Менің сыныбым"},

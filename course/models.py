@@ -297,3 +297,42 @@ class Payment(models.Model):
 
     def __str__(self):
         return f"{self.user} {self.amount} ₸ → {self.paid_until}"
+
+
+class Hero(models.Model):
+    """Персонаж ученика (рисунок собирается в course/avatar.py)."""
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="hero",
+                                verbose_name="Ученик")
+    gender = models.CharField("Пол", max_length=1, default="m", choices=[("m", "Мальчик"), ("f", "Девочка")])
+    skin = models.CharField("Кожа", max_length=10, default="light")
+    eye = models.CharField("Глаза", max_length=10, default="brown")
+    hair_color = models.CharField("Цвет волос", max_length=10, default="black")
+    bg = models.CharField(max_length=30, default="bg_room")
+    hair = models.CharField(max_length=30, default="hair_spiky")
+    top = models.CharField(max_length=30, default="top_tee")
+    hat = models.CharField(max_length=30, default="hat_none")
+    weapon = models.CharField(max_length=30, default="weapon_none")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Герой"
+        verbose_name_plural = "Герои"
+
+    def look(self, **override):
+        d = {f: getattr(self, f) for f in ("gender", "skin", "eye", "hair_color", "bg", "hair", "top", "hat", "weapon")}
+        d.update(override)
+        return d
+
+
+class Purchase(models.Model):
+    """Купленная за баллы вещь для героя."""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="purchases",
+                             verbose_name="Ученик")
+    item = models.CharField("Вещь", max_length=30)
+    price = models.PositiveIntegerField("Цена, баллы")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("user", "item")
+        verbose_name = "Покупка"
+        verbose_name_plural = "Покупки"
