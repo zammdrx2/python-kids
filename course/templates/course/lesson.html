@@ -122,4 +122,4 @@
 {% block scripts %}<script src="{% static 'vendor/codemirror/codemirror.min.js' %}"></script>
 <script src="{% static 'js/webchecks.js' %}"></script>
 {% if course.kind == 'sql' %}<script src="{% static 'vendor/sqljs/sql-wasm.js' %}"></script>{% endif %}
-<script src="{% static 'js/course.js' %}"></script>{% endblock %}
+<script src="{% static 'js/course.js' %}?v={{ v }}"></script>{% endblock %}
