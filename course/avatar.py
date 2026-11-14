@@ -158,31 +158,31 @@ TORSO = "M84 178 Q120 166 156 178 L166 252 L74 252 Z"
 
 
 def _top(item, skin):
-    arms = lambda col: (f'<path d="M86 182 L64 236" stroke="{col}" stroke-width="20" stroke-linecap="round"/>'
-                        f'<path d="M154 182 L176 236" stroke="{col}" stroke-width="20" stroke-linecap="round"/>')
+    arms = lambda col: (f'<path d="M86 182 L64 236" stroke="{col}" stroke-opacity="1" stroke-width="20" stroke-linecap="round"/>'
+                        f'<path d="M154 182 L176 236" stroke="{col}" stroke-opacity="1" stroke-width="20" stroke-linecap="round"/>')
     hands = f'<circle cx="64" cy="240" r="10" fill="{skin}"/><circle cx="176" cy="240" r="10" fill="{skin}"/>'
     if item == "top_hoodie":
         return (arms("#3E3E52") + f'<path d="{TORSO}" fill="#3E3E52"/>'
-                '<path d="M98 176 Q120 196 142 176" fill="none" stroke="#2B2B3A" stroke-width="6"/>'
+                '<path d="M98 176 Q120 196 142 176" fill="none" stroke="#2B2B3A" stroke-opacity="1" stroke-width="6"/>'
                 '<rect x="100" y="222" width="40" height="20" rx="6" fill="#34344A"/>'
-                '<text x="120" y="214" font-family="monospace" font-size="16" font-weight="700" fill="#7CE38B" text-anchor="middle">&lt;/&gt;</text>' + hands)
+                '<text stroke="none" x="120" y="214" font-family="monospace" font-size="16" font-weight="700" fill="#7CE38B" text-anchor="middle">&lt;/&gt;</text>' + hands)
     if item == "top_school":
         return (arms("#F4F6FB") + f'<path d="{TORSO}" fill="#F4F6FB"/>'
                 '<path d="M86 178 L120 210 L154 178 L146 176 L120 196 L94 176 Z" fill="#2F3F7A"/>'
                 '<path d="M114 206 L120 222 L126 206 L120 200 Z" fill="#E8546B"/>' + hands)
     if item == "top_ninja":
         return (arms("#2B2B3A") + f'<path d="{TORSO}" fill="#2B2B3A"/>'
-                '<path d="M86 180 L152 236" stroke="#3E3E58" stroke-width="10"/>'
+                '<path d="M86 180 L152 236" stroke="#3E3E58" stroke-opacity="1" stroke-width="10"/>'
                 '<rect x="74" y="228" width="92" height="10" fill="#C0392B"/>' + hands)
     if item == "top_wizard":
         return (arms("#5B47A8") + '<path d="M84 178 Q120 166 156 178 L176 266 L64 266 Z" fill="#5B47A8"/>'
-                '<path d="M120 172 L120 266" stroke="#F2C75C" stroke-width="4"/>'
+                '<path d="M120 172 L120 266" stroke="#F2C75C" stroke-opacity="1" stroke-width="4"/>'
                 '<circle cx="104" cy="206" r="4" fill="#F2C75C"/><circle cx="140" cy="226" r="3" fill="#F2C75C"/>'
                 '<path d="M134 196 l3 6 6 1-5 4 1 6-5-3-5 3 1-6-5-4 6-1z" fill="#F2C75C"/>' + hands)
     if item == "top_knight":
         return (arms("#A9B2C6") + f'<path d="{TORSO}" fill="#C3CBDB"/>'
                 '<path d="M92 186 Q120 178 148 186 L150 230 Q120 244 90 230 Z" fill="#E1E6F0"/>'
-                '<path d="M120 190 L120 232 M104 210 L136 210" stroke="#D9483B" stroke-width="6"/>'
+                '<path d="M120 190 L120 232 M104 210 L136 210" stroke="#D9483B" stroke-opacity="1" stroke-width="6"/>'
                 '<circle cx="84" cy="184" r="12" fill="#A9B2C6"/><circle cx="156" cy="184" r="12" fill="#A9B2C6"/>' + hands)
     if item == "top_space":
         return (arms("#EDEFF7") + f'<path d="{TORSO}" fill="#EDEFF7"/>'
@@ -192,8 +192,8 @@ def _top(item, skin):
                 '<circle cx="64" cy="240" r="11" fill="#6C7894"/><circle cx="176" cy="240" r="11" fill="#6C7894"/>')
     # футболка
     return (arms("#F2A65A") + f'<path d="{TORSO}" fill="#F2A65A"/>'
-            '<path d="M106 176 Q120 186 134 176" fill="none" stroke="#D98A40" stroke-width="4"/>'
-            '<text x="120" y="222" font-family="sans-serif" font-size="20" font-weight="800" fill="#fff" text-anchor="middle">Py</text>' + hands)
+            '<path d="M106 176 Q120 186 134 176" fill="none" stroke="#D98A40" stroke-opacity="1" stroke-width="4"/>'
+            '<text stroke="none" x="120" y="222" font-family="sans-serif" font-size="20" font-weight="800" fill="#fff" text-anchor="middle">Py</text>' + hands)
 
 
 def _weapon(item):
@@ -240,42 +240,105 @@ def _hat(item):
     return ""
 
 
-def _face(gender, skin, eye):
+def _mix(hex1, hex2, t):
+    a = [int(hex1[i:i + 2], 16) for i in (1, 3, 5)]
+    b = [int(hex2[i:i + 2], 16) for i in (1, 3, 5)]
+    return "#" + "".join(f"{round(x + (y - x) * t):02X}" for x, y in zip(a, b))
+
+
+HEAD = "M66 100 C66 52 174 52 174 100 C174 136 150 160 120 163 C90 160 66 136 66 100 Z"
+LINE = 'stroke="#3A2626" stroke-opacity=".45" stroke-width="2" stroke-linejoin="round"'
+
+
+def _defs(uid, hair_color, skin, eye):
     s, sh = SKINS.get(skin, SKINS["light"])
     e = EYES.get(eye, EYES["brown"])
-    head = (f'<ellipse cx="66" cy="110" rx="8" ry="11" fill="{s}"/><ellipse cx="174" cy="110" rx="8" ry="11" fill="{s}"/>'
-            f'<path d="M66 100 C66 52 174 52 174 100 C174 136 150 160 120 163 C90 160 66 136 66 100 Z" fill="{s}"/>')
+    return (f'<defs>'
+            f'<linearGradient id="hair{uid}" x1="0" y1="0" x2="0" y2="1">'
+            f'<stop offset="0" stop-color="{_mix(hair_color, "#FFFFFF", .25)}"/><stop offset=".45" stop-color="{hair_color}"/>'
+            f'<stop offset="1" stop-color="{_mix(hair_color, "#000000", .35)}"/></linearGradient>'
+            f'<radialGradient id="skin{uid}" cx=".45" cy=".4" r=".7"><stop offset="0" stop-color="{_mix(s, "#FFFFFF", .25)}"/>'
+            f'<stop offset=".7" stop-color="{s}"/><stop offset="1" stop-color="{sh}"/></radialGradient>'
+            f'<radialGradient id="iris{uid}" cx=".5" cy=".62" r=".6"><stop offset="0" stop-color="{_mix(e, "#FFFFFF", .55)}"/>'
+            f'<stop offset=".55" stop-color="{e}"/><stop offset="1" stop-color="{_mix(e, "#000000", .55)}"/></radialGradient>'
+            f'<linearGradient id="shade{uid}" x1="0" y1="0" x2="1" y2="0"><stop offset=".5" stop-color="#000" stop-opacity="0"/>'
+            f'<stop offset="1" stop-color="#000" stop-opacity=".18"/></linearGradient>'
+            f'<clipPath id="face{uid}"><path d="{HEAD}"/></clipPath>'
+            f'</defs>')
+
+
+def _head(uid, skin):
+    s, sh = SKINS.get(skin, SKINS["light"])
+    return (f'<g {LINE}><ellipse cx="66" cy="110" rx="8" ry="11" fill="{s}"/><ellipse cx="174" cy="110" rx="8" ry="11" fill="{s}"/>'
+            f'<path d="{HEAD}" fill="url(#skin{uid})"/></g>'
+            f'<path d="M70 120 C80 150 100 160 120 163 C104 156 84 142 70 120 Z" fill="{sh}" opacity=".35"/>')
+
+
+def _features(uid, gender, skin):
+    s, sh = SKINS.get(skin, SKINS["light"])
     eyes = ""
     for cx in (98, 142):
-        lash_w = 4.5 if gender == "f" else 3.5
-        flick = (f'<path d="M{cx + 13} 104 l6 -5" stroke="#2B2B3A" stroke-width="3" stroke-linecap="round"/>' if gender == "f" and cx == 142
-                 else (f'<path d="M{cx - 13} 104 l-6 -5" stroke="#2B2B3A" stroke-width="3" stroke-linecap="round"/>' if gender == "f" else ""))
-        eyes += (f'<ellipse cx="{cx}" cy="114" rx="13" ry="15" fill="#fff"/>'
-                 f'<ellipse cx="{cx}" cy="116" rx="10" ry="13" fill="{e}"/>'
-                 f'<ellipse cx="{cx}" cy="118" rx="5" ry="7" fill="#1E1A2E"/>'
-                 f'<circle cx="{cx - 4}" cy="110" r="3.6" fill="#fff"/><circle cx="{cx + 4}" cy="122" r="1.8" fill="#fff"/>'
-                 f'<path d="M{cx - 14} 104 Q{cx} 94 {cx + 14} 104" fill="none" stroke="#2B2B3A" stroke-width="{lash_w}" stroke-linecap="round"/>'
-                 + flick)
-    brows = ('<path d="M88 87 Q97 81 106 86" fill="none" stroke="#2B2B3A" stroke-width="2.5" stroke-linecap="round"/>'
-             '<path d="M134 86 Q143 81 152 87" fill="none" stroke="#2B2B3A" stroke-width="2.5" stroke-linecap="round"/>')
-    mouth = ('<path d="M113 140 Q120 147 127 140" fill="#E8546B" stroke="#B83A4E" stroke-width="2" stroke-linecap="round"/>'
-             '<ellipse cx="86" cy="132" rx="9" ry="5" fill="#F48FB1" opacity=".45"/>'
-             '<ellipse cx="154" cy="132" rx="9" ry="5" fill="#F48FB1" opacity=".45"/>')
-    neck = f'<rect x="110" y="150" width="20" height="26" fill="{sh}"/>'
-    return neck, head + eyes + brows + mouth
+        side = -1 if cx < 120 else 1
+        lash_w = 5 if gender == "f" else 4
+        eyes += (f'<path d="M{cx - 13} 106 Q{cx} 98 {cx + 13} 106 L{cx + 12} 124 Q{cx} 132 {cx - 12} 124 Z" fill="#fff"/>'
+                 f'<ellipse cx="{cx + side}" cy="116" rx="10" ry="13.5" fill="url(#iris{uid})"/>'
+                 f'<ellipse cx="{cx + side}" cy="118" rx="4.5" ry="6.5" fill="#1A1526"/>'
+                 f'<path d="M{cx - 12} 107 Q{cx} 100 {cx + 12} 107 L{cx + 12} 111 Q{cx} 105 {cx - 12} 111 Z" fill="{sh}" opacity=".55"/>'
+                 f'<ellipse cx="{cx - 4 * side - 1}" cy="110" rx="4" ry="4.6" fill="#fff"/>'
+                 f'<circle cx="{cx + 4 * side}" cy="123" r="1.9" fill="#fff"/>'
+                 f'<path d="M{cx + 5} 120 a6 6 0 0 1 -9 4" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="1.2"/>'
+                 f'<path d="M{cx - 15} 106 Q{cx} 95 {cx + 15} 106" fill="none" stroke="#231A24" stroke-width="{lash_w}" stroke-linecap="round"/>'
+                 f'<path d="M{cx - 8} 128 Q{cx} 131 {cx + 8} 128" fill="none" stroke="#5A3A3A" stroke-width="1.2" stroke-linecap="round" opacity=".7"/>')
+        if gender == "f":
+            eyes += (f'<path d="M{cx + 14 * side} 105 l{6 * side} -5 M{cx + 12 * side} 108 l{6 * side} -2" stroke="#231A24" '
+                     f'stroke-width="2.4" stroke-linecap="round"/>')
+    brows = ('<path d="M88 84 Q97 78 106 81" fill="none" stroke="#3A2626" stroke-width="2" stroke-linecap="round"/>'
+             '<path d="M134 81 Q143 78 152 84" fill="none" stroke="#3A2626" stroke-width="2" stroke-linecap="round"/>')
+    nose = f'<path d="M121 128 Q123 133 119 134" fill="none" stroke="{sh}" stroke-width="2" stroke-linecap="round"/>'
+    mouth = ('<path d="M112 141 Q120 148 128 141 Q120 144 112 141 Z" fill="#C2485C"/>'
+             '<path d="M112 141 Q120 144 128 141" fill="none" stroke="#7A2C3A" stroke-width="1.6" stroke-linecap="round"/>'
+             '<ellipse cx="85" cy="133" rx="10" ry="5" fill="#F48FB1" opacity=".35"/>'
+             '<ellipse cx="155" cy="133" rx="10" ry="5" fill="#F48FB1" opacity=".35"/>'
+             '<path d="M80 131 l4 -3 M85 132 l4 -3 M150 132 l4 -3 M155 131 l4 -3" stroke="#E07A9A" stroke-width="1.2" opacity=".6"/>')
+    return eyes + brows + nose + mouth
+
+
+def _shine():
+    return ('<path d="M86 66 Q104 52 124 54" fill="none" stroke="#fff" stroke-opacity=".38" stroke-width="5" stroke-linecap="round"/>'
+            '<path d="M132 55 Q146 57 156 64" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width="3" stroke-linecap="round"/>')
+
+
+_uid = [0]
 
 
 def render(look: dict, size: int | None = None) -> str:
     """look: gender, skin, eye, hair_color, и по одному предмету на слот."""
+    _uid[0] += 1
+    uid = _uid[0]
     gender = look.get("gender", "m")
     skin = look.get("skin", "light")
     hc = HAIR_COLORS.get(look.get("hair_color", "black"), HAIR_COLORS["black"])
     hair = look.get("hair") or default_hair(gender)
     top = look.get("top", "top_tee")
-    neck, face = _face(gender, skin, look.get("eye", "brown"))
-    s = SKINS.get(skin, SKINS["light"])[0]
-    parts = [_bg(look.get("bg", "bg_room")), _hair_back(hair, hc), _legs(gender, top).replace("#FFE3D1", s), neck,
-             _top(top, s), face, _hair_front(hair, hc), _hat(look.get("hat", "hat_none")), _weapon(look.get("weapon", "weapon_none"))]
+    hat = look.get("hat", "hat_none")
+    s, sh = SKINS.get(skin, SKINS["light"])
+    hairfill = f"url(#hair{uid})"
+    front = _hair_front(hair, hairfill)
+    bang_shadow = (f'<g clip-path="url(#face{uid})" opacity=".45"><g transform="translate(0 8)">'
+                   f'{_hair_front(hair, sh)}</g></g>')
+    parts = [
+        _defs(uid, hc, skin, look.get("eye", "brown")),
+        _bg(look.get("bg", "bg_room")),
+        f'<g {LINE}>{_hair_back(hair, hairfill)}</g>',
+        f'<g {LINE}>{_legs(gender, top).replace("#FFE3D1", s)}</g>',
+        f'<rect x="110" y="150" width="20" height="26" fill="{sh}"/><ellipse cx="120" cy="156" rx="12" ry="6" fill="#000" opacity=".12"/>',
+        f'<g {LINE}>{_top(top, s)}</g>',
+        f'<path d="M120 170 L156 178 L166 252 L120 252 Z" fill="url(#shade{uid})"/>' if top != "top_wizard" else
+        f'<path d="M120 170 L156 178 L176 266 L120 266 Z" fill="url(#shade{uid})"/>',
+        _head(uid, skin), bang_shadow, _features(uid, gender, skin),
+        f'<g {LINE}>{front}</g>', _shine() if hat in ("hat_none", "hat_cat", "hat_phones") else "",
+        f'<g stroke-opacity=".9">{_hat(hat)}</g>', _weapon(look.get("weapon", "weapon_none")),
+    ]
     wh = f' width="{size}" height="{int(size * 1.25)}"' if size else ""
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 300"{wh} role="img" aria-label="{escape("hero")}">'
             + "".join(parts) + "</svg>")
