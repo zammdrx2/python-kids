@@ -342,3 +342,142 @@ def render(look: dict, size: int | None = None) -> str:
     wh = f' width="{size}" height="{int(size * 1.25)}"' if size else ""
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 300"{wh} role="img" aria-label="{escape("hero")}">'
             + "".join(parts) + "</svg>")
+
+
+# ------------------------------------------------------------------ рост «как в манге» (v3)
+# Голова и лицо берутся из слоёв выше и уменьшаются; тело, одежда и длинные волосы
+# нарисованы заново под высокого стройного персонажа (холст 200 x 400).
+
+HEAD_T = 'transform="translate(100 72) scale(.56) translate(-120 -110)"'
+HAND_T = 'transform="translate(-36 -20)"'
+
+
+def _hair_back_tall(item, c):
+    if item == "hair_long":
+        return f'<path d="M72 60 C70 22 130 22 128 60 L138 178 C128 186 116 176 116 168 L84 168 C84 176 72 186 62 178 Z" fill="{c}"/>'
+    if item == "hair_bob":
+        return f'<path d="M71 60 C69 24 131 24 129 60 L131 100 C118 108 82 108 69 100 Z" fill="{c}"/>'
+    if item == "hair_pony":
+        return f'<path d="M116 34 C150 32 156 80 146 150 C142 166 132 168 132 156 C142 110 138 64 116 48 Z" fill="{c}"/>'
+    if item == "hair_twins":
+        return (f'<path d="M78 46 C50 52 46 110 56 176 C60 188 70 186 70 176 C62 130 64 86 82 62 Z" fill="{c}"/>'
+                f'<path d="M122 46 C150 52 154 110 144 176 C140 188 130 186 130 176 C138 130 136 86 118 62 Z" fill="{c}"/>')
+    return ""
+
+
+def _limbs(skin, sleeve, short=False):
+    """Руки: рукав (короткий или длинный) и кисти."""
+    if short:
+        arm = (f'<path d="M73 124 L64 172 L60 214" fill="none" stroke="{skin}" stroke-opacity="1" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>'
+               f'<path d="M127 124 L136 172 L140 214" fill="none" stroke="{skin}" stroke-opacity="1" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>'
+               f'<path d="M73 122 L68 150" stroke="{sleeve}" stroke-opacity="1" stroke-width="16" stroke-linecap="round"/>'
+               f'<path d="M127 122 L132 150" stroke="{sleeve}" stroke-opacity="1" stroke-width="16" stroke-linecap="round"/>')
+    else:
+        arm = (f'<path d="M73 124 L64 172 L61 210" fill="none" stroke="{sleeve}" stroke-opacity="1" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>'
+               f'<path d="M127 124 L136 172 L139 210" fill="none" stroke="{sleeve}" stroke-opacity="1" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>')
+    return arm + f'<circle cx="60" cy="219" r="6.5" fill="{skin}"/><circle cx="140" cy="219" r="6.5" fill="{skin}"/>'
+
+
+def _bottom(gender, skin, pants, skirt, socks="#2F3550", shoes="#3A2A2A", skirt_ok=True):
+    sh = (f'<path d="M74 374 Q86 366 98 374 L98 382 L72 382 Z" fill="{shoes}"/>'
+          f'<path d="M102 374 Q114 366 126 374 L128 382 L102 382 Z" fill="{shoes}"/>')
+    if gender == "f" and skirt_ok:
+        pleats = "".join(f'<path d="M{x} 200 L{x + (x - 100) * .3:.0f} 252" stroke="#000" stroke-opacity=".15" stroke-width="1.5"/>'
+                         for x in (78, 89, 100, 111, 122))
+        return (f'<rect x="80" y="246" width="15" height="128" fill="{skin}"/><rect x="105" y="246" width="15" height="128" fill="{skin}"/>'
+                f'<rect x="79" y="304" width="17" height="72" rx="3" fill="{socks}"/><rect x="104" y="304" width="17" height="72" rx="3" fill="{socks}"/>'
+                f'<path d="M68 196 L132 196 L146 254 L54 254 Z" fill="{skirt}"/>' + pleats + sh)
+    return (f'<path d="M70 196 L99 196 L97 374 L77 374 Z" fill="{pants}"/><path d="M101 196 L130 196 L123 374 L103 374 Z" fill="{pants}"/>'
+            f'<path d="M99 206 L99 300" stroke="#000" stroke-opacity=".12" stroke-width="1.5"/>' + sh)
+
+
+TORSO_T = "M70 118 Q100 110 130 118 L134 202 L66 202 Z"
+
+
+def _outfit_tall(item, gender, skin):
+    if item == "top_hoodie":
+        return (_bottom(gender, skin, "#2E3446", "#E86A8A") + _limbs(skin, "#3E3E52")
+                + f'<path d="{TORSO_T}" fill="#3E3E52"/><path d="M84 116 Q100 132 116 116" fill="#2F2F42"/>'
+                '<path d="M92 120 L90 146 M108 120 L110 146" stroke="#C9CED8" stroke-opacity="1" stroke-width="2"/>'
+                '<rect x="82" y="172" width="36" height="18" rx="5" fill="#34344A"/>'
+                '<text stroke="none" x="100" y="160" font-family="monospace" font-size="11" font-weight="700" fill="#7CE38B" text-anchor="middle">&lt;/&gt;</text>')
+    if item == "top_school":
+        neck = ('<path d="M92 116 L100 140 L108 116 Z" fill="#fff"/>'
+                + ('<path d="M100 126 L94 120 L94 132 Z M100 126 L106 120 L106 132 Z" fill="#C0392B"/>' if gender == "f"
+                   else '<path d="M98 122 L102 122 L104 150 L100 156 L96 150 Z" fill="#B03030"/>'))
+        return (_bottom(gender, skin, "#6B6470", "#4B4E63", socks="#232842") + _limbs(skin, "#6E8CA6")
+                + f'<path d="{TORSO_T}" fill="#6E8CA6"/>' + neck
+                + '<path d="M90 116 L100 150 L86 196 L72 196 L80 140 Z M110 116 L100 150 L114 196 L128 196 L120 140 Z" fill="#5E7C96"/>'
+                '<circle cx="100" cy="168" r="2.2" fill="#2B2B3A"/><circle cx="100" cy="182" r="2.2" fill="#2B2B3A"/>'
+                '<path d="M82 112 Q100 122 118 112 L120 120 Q100 132 80 120 Z" fill="#D9483B"/>'
+                '<path d="M110 120 L116 160 L108 160 L104 124 Z" fill="#C43C30"/>')
+    if item == "top_ninja":
+        return (_bottom(gender, skin, "#23232F", "#23232F", skirt_ok=False) + _limbs(skin, "#2B2B3A")
+                + f'<path d="{TORSO_T}" fill="#2B2B3A"/><path d="M78 118 L122 196" stroke="#3E3E58" stroke-opacity="1" stroke-width="7"/>'
+                '<rect x="66" y="188" width="68" height="9" fill="#C0392B"/><path d="M128 192 l10 18 l-6 2 z" fill="#C0392B"/>'
+                '<path d="M77 330 L97 330 M103 330 L123 330 M77 350 L97 350 M103 350 L123 350" stroke="#3E3E58" stroke-opacity="1" stroke-width="3"/>')
+    if item == "top_wizard":
+        return ('<path d="M80 300 L80 374 M120 300 L120 374" stroke="#3A2E66" stroke-opacity="1" stroke-width="14"/>'
+                + _bottom("m", skin, "#3A2E66", "#3A2E66")[-200:] if False else
+                '<rect x="80" y="300" width="16" height="76" fill="#3A2E66"/><rect x="104" y="300" width="16" height="76" fill="#3A2E66"/>'
+                '<path d="M72 374 Q86 366 98 374 L98 382 L70 382 Z M102 374 Q114 366 128 374 L130 382 L102 382 Z" fill="#3A2A2A"/>'
+                + _limbs(skin, "#5B47A8") + '<path d="M70 118 Q100 110 130 118 L148 318 L52 318 Z" fill="#5B47A8"/>'
+                '<path d="M100 118 L100 318" stroke="#F2C75C" stroke-opacity="1" stroke-width="3"/>'
+                '<path d="M52 318 L148 318" stroke="#F2C75C" stroke-opacity="1" stroke-width="4"/>'
+                '<path d="M80 200 l2 5 5 1-4 3 1 5-4-3-4 3 1-5-4-3 5-1z M118 250 l2 5 5 1-4 3 1 5-4-3-4 3 1-5-4-3 5-1z" fill="#F2C75C"/>')
+    if item == "top_knight":
+        return (_bottom("m", skin, "#8A93A8", "", shoes="#5A6274") + _limbs(skin, "#A9B2C6")
+                + f'<path d="{TORSO_T}" fill="#C3CBDB"/>'
+                '<path d="M78 124 Q100 116 122 124 L124 180 Q100 192 76 180 Z" fill="#E1E6F0"/>'
+                '<path d="M100 128 L100 178 M86 148 L114 148" stroke="#D9483B" stroke-opacity="1" stroke-width="5"/>'
+                '<ellipse cx="70" cy="124" rx="11" ry="9" fill="#A9B2C6"/><ellipse cx="130" cy="124" rx="11" ry="9" fill="#A9B2C6"/>'
+                '<rect x="66" y="190" width="68" height="10" fill="#7A6040"/><rect x="95" y="190" width="10" height="10" fill="#F2C75C"/>'
+                '<rect x="74" y="250" width="22" height="16" rx="5" fill="#A9B2C6"/><rect x="104" y="250" width="22" height="16" rx="5" fill="#A9B2C6"/>')
+    if item == "top_space":
+        return ('<path d="M70 196 L99 196 L97 374 L77 374 Z M101 196 L130 196 L123 374 L103 374 Z" fill="#EDEFF7"/>'
+                '<rect x="72" y="346" width="28" height="34" rx="6" fill="#6C7894"/><rect x="100" y="346" width="28" height="34" rx="6" fill="#6C7894"/>'
+                + _limbs(skin, "#EDEFF7").replace(f'fill="{skin}"', 'fill="#6C7894"')
+                + f'<path d="{TORSO_T}" fill="#EDEFF7"/><rect x="84" y="138" width="32" height="22" rx="5" fill="#5C8DF2"/>'
+                '<circle cx="93" cy="149" r="3.5" fill="#FFD66B"/><circle cx="107" cy="149" r="3.5" fill="#7CE38B"/>'
+                '<rect x="66" y="186" width="68" height="7" fill="#F2A65A"/><path d="M66 300 L134 300" stroke="#F2A65A" stroke-opacity="1" stroke-width="5"/>')
+    # футболка
+    return (_bottom(gender, skin, "#3C5A99", "#E86A8A") + _limbs(skin, "#F2A65A", short=True)
+            + f'<path d="{TORSO_T}" fill="#F2A65A"/><path d="M90 116 Q100 124 110 116" fill="none" stroke="#D98A40" stroke-opacity="1" stroke-width="3"/>'
+            '<text stroke="none" x="100" y="166" font-family="sans-serif" font-size="17" font-weight="800" fill="#fff" text-anchor="middle">Py</text>')
+
+
+def render_tall(look: dict, size: int | None = None, crop: str = "") -> str:
+    """Высокий персонаж «как в манге». crop="bust" - только верх (для причёсок и шапок)."""
+    _uid[0] += 1
+    uid = _uid[0]
+    gender = look.get("gender", "m")
+    skin = look.get("skin", "light")
+    hc = HAIR_COLORS.get(look.get("hair_color", "black"), HAIR_COLORS["black"])
+    hair = look.get("hair") or default_hair(gender)
+    top = look.get("top", "top_tee")
+    hat = look.get("hat", "hat_none")
+    s, sh = SKINS.get(skin, SKINS["light"])
+    hairfill = f"url(#hair{uid})"
+    bang_shadow = (f'<g clip-path="url(#face{uid})" opacity=".45"><g transform="translate(0 8)">'
+                   f'{_hair_front(hair, sh)}</g></g>')
+    head = (f'<g {HEAD_T}>' + _head(uid, skin) + bang_shadow + _features(uid, gender, skin)
+            + f'<g {LINE}>{_hair_front(hair, hairfill)}</g>'
+            + (_shine() if hat in ("hat_none", "hat_cat", "hat_phones") else "")
+            + f'<g stroke-opacity=".9">{_hat(hat)}</g></g>')
+    shade = ('<path d="M100 112 L130 118 L134 202 L100 202 Z" fill="url(#shade%s)"/>' % uid if top != "top_wizard"
+             else '<path d="M100 112 L130 118 L148 318 L100 318 Z" fill="url(#shade%s)"/>' % uid)
+    parts = [
+        _defs(uid, hc, skin, look.get("eye", "brown")),
+        f'<svg x="0" y="0" width="200" height="400" viewBox="0 0 240 300" preserveAspectRatio="xMidYMid slice">{_bg(look.get("bg", "bg_room"))}</svg>',
+        f'<ellipse cx="100" cy="384" rx="44" ry="6" fill="#000" opacity=".12"/>',
+        f'<g {LINE}>{_hair_back_tall(hair, hairfill)}</g>',
+        f'<rect x="94" y="98" width="12" height="20" fill="{sh}"/>',
+        f'<g {LINE}>{_outfit_tall(top, gender, s)}</g>', shade,
+        head,
+        f'<g {HAND_T}>{_weapon(look.get("weapon", "weapon_none"))}</g>',
+    ]
+    vb = "40 16 120 150" if crop == "bust" else "0 0 200 400"
+    ratio = 1.25 if crop == "bust" else 2
+    wh = f' width="{size}" height="{int(size * ratio)}"' if size else ""
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{vb}"{wh} role="img" aria-label="hero">'
+            + "".join(parts) + "</svg>")

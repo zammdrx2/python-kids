@@ -55,10 +55,11 @@ def hero(request):
         items.append({"id": item_id, "name": kk if lang == "kk" else ru, "price": price,
                       "owned": item_id in owned, "worn": getattr(h, slot) == item_id,
                       "can_buy": balance >= price, "need": max(0, price - balance),
-                      "preview": mark_safe(avatar.render(h.look(**{slot: item_id})))})
+                      "preview": mark_safe(avatar.render_tall(h.look(**{slot: item_id}),
+                                                                  crop="bust" if slot in ("hair", "hat") else ""))})
     items.sort(key=lambda i: (i["price"], i["name"]))
     return render(request, "course/hero.html", {
-        "ct": ct, "points": balance, "hero": h, "svg": mark_safe(avatar.render(h.look())),
+        "ct": ct, "points": balance, "hero": h, "svg": mark_safe(avatar.render_tall(h.look())),
         "slot": slot, "slots": [{"id": s, "title": ct[f"slot_{s}"]} for s in SLOT_ORDER], "items": items,
         "earned": services.points_earned(request.user),
         "skins": [{"id": k, "color": v[0]} for k, v in avatar.SKINS.items()],
