@@ -84,8 +84,7 @@ def _course_map(user, course, lang):
             lock = locks.get(l.id)
             item = {"lesson": l, "title": l.title(lang), "goal": l.goal(lang), "progress": p, "state": state,
                     "module": m, "color": color, "locked": lock is not None,
-                    "lock_test": lock[1] if lock and lock[0] == "test" else None,
-                    "lock_paid": bool(lock and lock[0] == "paid")}
+                    "lock_test": lock[1] if lock and lock[0] == "test" else None}
             lessons.append(item)
             flat.append(item)
         done = sum(1 for i in lessons if i["state"] == "done")
@@ -150,8 +149,7 @@ def course_home(request, course):
     return render(request, "course/home.html", {
         "course": course, "course_title": course.title(lang), "course_desc": course.desc(lang),
         "modules": modules, "ct": course_texts(lang), "points": services.user_points(request.user),
-        "next_item": next_item, "next_test": next_test,
-        "need_pay": next_item is None and any(i["lock_paid"] for i in flat), "started": any(i["progress"]["solved"] for i in flat),
+        "next_item": next_item, "next_test": next_test, "started": any(i["progress"]["solved"] for i in flat),
         "complete": bool(flat) and all(m["complete"] for m in modules),
         "cert": Certificate.objects.filter(user=request.user, course=course).first() if request.user.is_authenticated else None,
     })
@@ -258,9 +256,6 @@ def lesson_detail(request, course, number):
     ct = course_texts(lang)
     lock = services.lesson_lock(request.user, lesson)
     if lock:
-        if lock[0] == "paid":
-            messages.info(request, ct["locked_paid_msg"])
-            return redirect("pay")
         if lock[0] == "test":
             messages.info(request, ct["locked_test_msg"].format(n=lock[1]))
             return redirect("course_module", course.slug, lock[1])

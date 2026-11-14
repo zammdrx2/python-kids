@@ -25,15 +25,6 @@
   </span>
   <span class="continue__btn">{{ ct.test_start }}</span>
 </a>
-{% elif need_pay %}
-<a class="continue" href="{% url 'pay' %}">
-  <span class="continue__num" style="background: #FFD166">₸</span>
-  <span class="continue__text">
-    <span class="continue__meta">{{ ct.locked_paid }}</span>
-    <span class="continue__title">{{ ct.locked_paid_msg }}</span>
-  </span>
-  <span class="continue__btn">{{ ct.pay_kaspi }}</span>
-</a>
 {% elif next_item %}
 <a class="continue" href="{% url 'course_lesson' course.slug next_item.lesson.number %}">
   <span class="continue__num" style="background: {{ next_item.color }}">{{ next_item.lesson.number|stringformat:"02d" }}</span>
