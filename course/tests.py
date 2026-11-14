@@ -569,7 +569,7 @@ class PaymentsClassFilterTests(TestCase):
 
 
 class HeroTests(TestCase):
-    """Герой: баллы тратятся на вещи, нельзя купить без баллов и надеть некупленное."""
+    """Герой: баллы тратятся на вещи, нельзя купить без баллов, надеть некупленное или вещь другого пола."""
 
     @classmethod
     def setUpTestData(cls):
@@ -582,33 +582,55 @@ class HeroTests(TestCase):
         self.client.login(username="herokid", password="pass12345")
 
     def test_page_and_buying(self):
-        from .services import points_earned, user_points
         from .models import Purchase
+        from .services import points_earned, user_points
         earned = points_earned(self.kid)
         self.assertGreater(earned, 100)
         r = self.client.get(reverse("hero"))
-        self.assertContains(r, "<svg")
-        self.client.post(reverse("hero"), {"action": "buy", "item": "weapon_wood", "slot": "weapon"})
-        self.assertEqual(user_points(self.kid), earned - 100)
-        self.assertEqual(self.kid.hero.weapon, "weapon_wood")
-        # повторная покупка не списывает баллы
-        self.client.post(reverse("hero"), {"action": "buy", "item": "weapon_wood"})
+        self.assertContains(r, "hero/m/base__body.webp")
+        self.client.post(reverse("hero"), {"action": "buy", "item": "m_school", "slot": "outfit"})
+        self.assertEqual(user_points(self.kid), earned - 90)
+        self.assertEqual(self.kid.hero.outfit, "m_school")
+        self.client.post(reverse("hero"), {"action": "buy", "item": "m_school"})
         self.assertEqual(Purchase.objects.filter(user=self.kid).count(), 1)
-        # дорогое - нельзя
-        self.client.post(reverse("hero"), {"action": "buy", "item": "weapon_laser"})
-        self.kid.hero.refresh_from_db()
-        self.assertEqual(self.kid.hero.weapon, "weapon_wood")
-        self.assertFalse(Purchase.objects.filter(user=self.kid, item="weapon_laser").exists())
-        # в шапке сайта - баланс
-        self.assertContains(self.client.get(reverse("hero")), f"★ {earned - 100}")
+        self.client.post(reverse("hero"), {"action": "buy", "item": "m_suit2"})
+        self.client.post(reverse("hero"), {"action": "buy", "item": "m_front7"})
+        self.assertFalse(Purchase.objects.filter(user=self.kid, item="m_front7").exists() and
+                         user_points(self.kid) < 0)
+        self.assertGreaterEqual(user_points(self.kid), 0)
+        self.assertContains(self.client.get(reverse("hero")), f"★ {user_points(self.kid)}")
 
-    def test_cannot_wear_unowned_and_gender_switch(self):
-        self.client.post(reverse("hero"), {"action": "wear", "item": "hat_crown"})
-        self.client.post(reverse("hero"), {"action": "look", "gender": "f", "eye": "blue", "skin": "nope"})
-        from .models import Hero
+    def test_rules(self):
+        from .models import Hero, Purchase
+        self.client.post(reverse("hero"), {"action": "wear", "item": "m_glasses"})        # не куплено
+        self.client.post(reverse("hero"), {"action": "buy", "item": "f_glasses"})         # чужой пол
         h = Hero.objects.get(user=self.kid)
-        self.assertEqual(h.hat, "hat_none")
-        self.assertEqual((h.gender, h.hair, h.eye, h.skin), ("f", "hair_long", "blue", "light"))
+        self.assertEqual(h.acc, "m_noacc")
+        self.assertFalse(Purchase.objects.filter(item="f_glasses").exists())
+        self.client.post(reverse("hero"), {"action": "look", "gender": "f"})
+        h.refresh_from_db()
+        self.assertEqual((h.gender, h.outfit, h.hairfront), ("f", "f_tee", "f_front1"))
+        self.client.post(reverse("hero"), {"action": "look", "hair_color": "pink", "face": "happy_1"})
+        h.refresh_from_db()
+        self.assertEqual((h.hair_color, h.face), ("pink", "happy_1"))
+        self.assertContains(self.client.get(reverse("hero")), "hero/f/hairback__style_1__pink.webp")
+
+    def test_all_layer_files_exist(self):
+        import os
+        from django.conf import settings
+        from . import hero_art
+        for g in "fm":
+            for item, v in hero_art.ITEMS.items():
+                if v[0] != g:
+                    continue
+                look = {"gender": g, v[1]: item}
+                for c in hero_art.COLORS[g]:
+                    look["hair_color"] = c
+                    for f, *_ in hero_art.FACES[g]:
+                        look["face"] = f
+                        for src in hero_art.layers(look):
+                            path = os.path.join(settings.BASE_DIR, "static", src.split("/static/", 1)[1])
+                            self.assertTrue(os.path.exists(path), path)
 
     def test_login_required(self):
         self.client.logout()

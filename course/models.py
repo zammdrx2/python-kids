@@ -300,18 +300,17 @@ class Payment(models.Model):
 
 
 class Hero(models.Model):
-    """Персонаж ученика (рисунок собирается в course/avatar.py)."""
+    """Персонаж ученика (слои рисунков - course/hero_art.py)."""
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="hero",
                                 verbose_name="Ученик")
-    gender = models.CharField("Пол", max_length=1, default="m", choices=[("m", "Мальчик"), ("f", "Девочка")])
-    skin = models.CharField("Кожа", max_length=10, default="light")
-    eye = models.CharField("Глаза", max_length=10, default="brown")
-    hair_color = models.CharField("Цвет волос", max_length=10, default="black")
+    gender = models.CharField("Пол", max_length=1, default="m", choices=[("m", "Парень"), ("f", "Девушка")])
+    hair_color = models.CharField("Цвет волос", max_length=10, default="brown")
+    face = models.CharField("Выражение лица", max_length=20, default="smile_1")
+    outfit = models.CharField(max_length=30, default="m_raglan")
+    hairfront = models.CharField(max_length=30, default="m_front1")
+    hairback = models.CharField(max_length=30, default="m_back1")
+    acc = models.CharField(max_length=30, default="m_noacc")
     bg = models.CharField(max_length=30, default="bg_room")
-    hair = models.CharField(max_length=30, default="hair_spiky")
-    top = models.CharField(max_length=30, default="top_tee")
-    hat = models.CharField(max_length=30, default="hat_none")
-    weapon = models.CharField(max_length=30, default="weapon_none")
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -319,7 +318,7 @@ class Hero(models.Model):
         verbose_name_plural = "Герои"
 
     def look(self, **override):
-        d = {f: getattr(self, f) for f in ("gender", "skin", "eye", "hair_color", "bg", "hair", "top", "hat", "weapon")}
+        d = {f: getattr(self, f) for f in ("gender", "hair_color", "face", "outfit", "hairfront", "hairback", "acc", "bg")}
         d.update(override)
         return d
 

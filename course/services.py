@@ -244,7 +244,6 @@ def user_points(user) -> int:
 
 
 def get_hero(user):
-    from . import avatar
     from .models import Hero
     hero, created = Hero.objects.get_or_create(user=user)
     return hero
@@ -256,27 +255,31 @@ class NotEnoughPoints(Exception):
 
 @transaction.atomic
 def buy_item(user, item_id):
-    """Покупка вещи: баллы списываются, вещь сразу надевается."""
-    from . import avatar
-    from .models import Hero, Purchase
-    if item_id not in avatar.ITEMS:
+    """Покупка вещи: баллы списываются один раз, вещь сразу надевается."""
+    from . import avatar, hero_art
+    from .models import Purchase
+    hero = get_hero(user)
+    if item_id in hero_art.ITEMS:
+        if hero_art.ITEMS[item_id][0] != hero.gender:
+            raise ValueError(item_id)
+    elif not (item_id in avatar.ITEMS and avatar.ITEMS[item_id][0] == "bg"):
         raise ValueError(item_id)
-    slot, price = avatar.ITEMS[item_id][:2]
+    slot, price = hero_art.item_slot(item_id), hero_art.item_price(item_id)
     get_user_model().objects.select_for_update().get(pk=user.pk)  # одна покупка за раз
     if price and not Purchase.objects.filter(user=user, item=item_id).exists():
         if user_points(user) < price:
             raise NotEnoughPoints
         Purchase.objects.create(user=user, item=item_id, price=price)
-    hero = get_hero(user)
     setattr(hero, slot, item_id)
     hero.save()
     return hero
 
 
 def owned_items(user) -> set:
-    from . import avatar
+    from . import avatar, hero_art
     from .models import Purchase
-    return avatar.free_items() | set(Purchase.objects.filter(user=user).values_list("item", flat=True))
+    free = hero_art.free_items() | {k for k, v in avatar.ITEMS.items() if v[0] == "bg" and v[1] == 0}
+    return free | set(Purchase.objects.filter(user=user).values_list("item", flat=True))
 
 
 TEACHERS_GROUP = "Учителя"

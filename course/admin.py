@@ -88,7 +88,7 @@ class PaymentAdmin(admin.ModelAdmin):
 
 @admin.register(Hero)
 class HeroAdmin(admin.ModelAdmin):
-    list_display = ("user", "gender", "hair", "top", "hat", "weapon", "bg", "updated_at")
+    list_display = ("user", "gender", "outfit", "hairfront", "hairback", "acc", "bg", "updated_at")
     search_fields = ("user__username",)
 
 
